@@ -70,10 +70,10 @@ def binning(args):
     """ process high read counts """
     read_counts_source = read_counts
     R_max = 1e5
-    Rc_reads = np.sum(read_counts, axis=1, keepdims=True)
-    # Rn_reads = read_counts.sum(axis=0)
-    scale_down = R_max/(R_max + Rc_reads)
-    read_counts = np.multiply(read_counts, scale_down)
+    # Rc_reads = np.sum(read_counts, axis=1, keepdims=True)
+    # # Rn_reads = read_counts.sum(axis=0)
+    # scale_down = R_max/(R_max + Rc_reads)
+    # read_counts = np.multiply(read_counts, scale_down)
     Rc_reads = read_counts.sum(axis=1)
     Rn_reads = read_counts.sum(axis=0)
 
@@ -132,8 +132,8 @@ def binning(args):
 
     """ process high kmer counts """
     kmer_counts_source = kmer_counts
-    scale_down_kmer = R_max / (R_max + kmer_counts.reshape(-1,64,4).sum(axis=2))
-    kmer_counts = np.multiply(kmer_counts, np.repeat(scale_down_kmer, 4, axis=1))
+    # scale_down_kmer = R_max / (R_max + kmer_counts.reshape(-1,64,4).sum(axis=2))
+    # kmer_counts = np.multiply(kmer_counts, np.repeat(scale_down_kmer, 4, axis=1))
 
     trimercountsper_nt = kmer_counts.reshape(-1,64,4).sum(axis=0)
     Rc_kmers = kmer_counts.reshape(-1,64,4).sum(axis=2)

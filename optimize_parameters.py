@@ -9,10 +9,10 @@ import metadevol_distance as md
 import simdefy
 simdefy.init()
 
-# log_gamma = special.gammaln
+log_gamma = special.gammaln
 
-def log_gamma(x):
-    return simdefy.log_gamma_avx2(x)
+# def log_gamma(x):
+#     return simdefy.log_gamma_avx2(x)
 #     return md.log_gamma_avx2(x)
 
 def factorial(x):

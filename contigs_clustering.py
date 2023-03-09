@@ -46,10 +46,10 @@ def cluster_by_centroids(argv):
             if cluster_assigned[c] < 0 :
                 # cluster_assigned[c] = cluster_curr
                 # Bayes_factor = dist.calc_Bayes_factor(Rc_reads[c], Rc_reads, contig_length[c], contig_length, gamma_shape, gamma_scale)
-                # distance = dist.distance(read_counts[c], read_counts, Rc_reads[c], Rc_reads, dirichlet_prior_persamples, dirichlet_prior, 0) #, Bayses_factor
+                distance = dist.distance(read_counts[c], read_counts, Rc_reads[c], Rc_reads, dirichlet_prior_persamples, dirichlet_prior, 0) #, Bayses_factor
                 # distance_bykmers = dist.distance(kmer_counts[c], kmer_counts, Rc_kmers[c], Rc_kmers, dirichlet_prior_perkmers, dirichlet_prior_kmers, 1)
                 # distance = distance_byreads + distance_bykmers
-                distance = calc_distance.compute_dist(c, read_counts, kmer_counts, Rc_reads, Rc_kmers, dirichlet_prior, dirichlet_prior_persamples, dirichlet_prior_kmers, dirichlet_prior_perkmers)
+                # distance = calc_distance.compute_dist(c, read_counts, kmer_counts, Rc_reads, Rc_kmers, dirichlet_prior, dirichlet_prior_persamples, dirichlet_prior_kmers, dirichlet_prior_perkmers)
                 # distance = calc_distance.compute_readcountdist(c, read_counts, Rc_reads, dirichlet_prior, dirichlet_prior_persamples)
                 inds = np.nonzero(distance < dist_to_assigned)[0] # " there could be empty list "
             
