@@ -43,8 +43,8 @@ def cluster_by_centroids(argv):
         for c, i in zip(iterate_ind, bar):
         
             if cluster_assigned[c] < 0 :
-                distance = dist.distance(read_counts[c], read_counts, Rc_reads[c], Rc_reads, dirichlet_prior_persamples, dirichlet_prior, 0)
-                # distance = calc_distance.compute_readcountdist(c, read_counts, Rc_reads, dirichlet_prior, dirichlet_prior_persamples)
+                # distance = dist.distance(read_counts[c], read_counts, Rc_reads[c], Rc_reads, dirichlet_prior_persamples, dirichlet_prior, 0)
+                distance = calc_distance.compute_readcountdist(c, read_counts, Rc_reads, dirichlet_prior, dirichlet_prior_persamples)
                 # distance = calc_distance.compute_dist(c, read_counts, kmer_counts, Rc_reads, Rc_kmers, dirichlet_prior, dirichlet_prior_persamples, dirichlet_prior_kmers, dirichlet_prior_perkmers)
                 clustercentroids_list.append(c)
 
@@ -172,7 +172,7 @@ def cluster_by_connecting_centroids(cluster_parameters):
     argv = cluster_parameters
     working_dir = argv[12]
     members, cluster_centroids_read, cluster_centroids_kmer = cluster_by_centroids(cluster_parameters)
-    links = components_by_merging_clusters(cluster_parameters, members, cluster_centroids_read, cluster_centroids_kmer)
+    # links = components_by_merging_clusters(cluster_parameters, members, cluster_centroids_read, cluster_centroids_kmer)
     # components, num_components, numclust_incomponents = find_connected_components(links)
     # np.savetxt(working_dir + "/components_reads", np.dstack((np.arange(len(components)), components))[0], fmt='%d')
     # clusters = merge_members_by_connnected_components(components, num_components, members)
