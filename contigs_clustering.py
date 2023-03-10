@@ -113,7 +113,7 @@ def cluster_by_centroids(argv):
     # # new cluster steps ends
 
             # print("entering {}th cluster center".format(cluster_curr))
-    with open(working_dir + "/cluster_assigned", 'w+') as file:
+    with open(working_dir + "/cluster_assigned_testforold", 'w+') as file:
         for f in range(len(members)):
             for q in members[f]:
                 file.write(str(q) + " " + str(f) + "\n")
@@ -214,7 +214,7 @@ def cluster_by_connecting_centroids(cluster_parameters):
     print(len(members))
     links = count_numbers_of_sharedcontigs(len(members), neighbors, min_shared_contigs)
     components, num_components, numclust_incomponents = find_connected_components(links)
-    np.savetxt(working_dir + "/components_onlyreads", np.dstack((np.arange(len(components)), components))[0], fmt='%d')
+    np.savetxt(working_dir + "/components_onlyreads_testforold", np.dstack((np.arange(len(components)), components))[0], fmt='%d')
     print("number of connected components", num_components)
     clusters = merge_members_by_connnected_components(components, num_components, members)
     print("count_by_connecting_centroids took ", time.time() - s, "seconds")

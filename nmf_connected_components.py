@@ -194,7 +194,7 @@ def nmf_connected_components(read_counts, contig_length, clusters, numclust_inco
             # obtain best k using maximum AIC value    
             bval = np.argmax(AIC_score)
             W_full.append(optimized["W"+str(bval)])
-            # print(k, bval, numclust_incomponents[k])
+            print(k, bval, numclust_incomponents[k])
             if small_nmfassign_flag == 1:
                 if bval == 0:
                     bin_assigned.append(np.vstack((clusters[k], [bin_index] * len(clusters[k]))))

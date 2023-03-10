@@ -3,7 +3,7 @@ import gc
 import numpy as np
 import distance_calculations as dist
 import metadevol_distance as calc_distance
-# from tqdm.auto import tqdm
+import optimize_parameters as opt
 import click, sys
 
 def cluster_by_centroids(argv):
@@ -74,8 +74,8 @@ def cluster_by_centroids(argv):
             members.append([c])
             cluster_curr += 1
 
-    np.savetxt(working_dir + "/cluster_assigned_80sp", cluster_assigned, fmt='%d')
-    np.save(working_dir + 'clustercentroids_80splist', np.array(clustercentroids_list))
+    # np.savetxt(working_dir + "/cluster_assigned_80sp", cluster_assigned, fmt='%d')
+    # np.save(working_dir + 'clustercentroids_80splist', np.array(clustercentroids_list))
 
     for k in members:
         if len(k) == 0:
@@ -83,10 +83,17 @@ def cluster_by_centroids(argv):
         cluster_centroids_read = np.append(cluster_centroids_read, np.array([read_counts_source[k].sum(axis=0)]), axis=0)
         cluster_centroids_kmer = np.append(cluster_centroids_kmer, np.array([kmer_counts_source[k].sum(axis=0)]), axis=0)
 
+    with open(working_dir + "/cluster_assigned_checkcc", 'w+') as file:
+        for f in range(len(members)):
+            for q in members[f]:
+                file.write(str(q) + " " + str(f) + "\n")    
+
     print(cluster_curr, len(members))
     print(np.shape(cluster_centroids_read), np.shape(cluster_centroids_kmer))
     print("Obtained {} clusters from initial clustering".format(len(members)))
     print("Initial clustering took:", time.time() - s,"seconds")
+    np.save(working_dir + 'cluster_centroids_read', cluster_centroids_read)
+    np.save(working_dir + 'cluster_centroids_kmer', cluster_centroids_kmer)
     gc.collect()
     return members, cluster_centroids_read, cluster_centroids_kmer
 
@@ -97,8 +104,19 @@ def components_by_merging_clusters(cluster_parameters, members, cluster_centroid
     dirichlet_prior_kmers = cluster_parameters[7]
     dirichlet_prior_perkmers = cluster_parameters[8].flatten()
     d0 = cluster_parameters[9]
+    Rc_reads = cluster_centroids_read.sum(axis=1)
+    Rn_reads = cluster_centroids_read.sum(axis=0)
+
+    """ re-optimize dirichlet priors for summed counts"""
+
+    ss = time.time()
+    dirichlet_prior = opt.optimize_alpha(cluster_centroids_read, Rc_reads, Rn_reads, cluster_centroids_read.shape[1])
+    print('obtained alpha parameter for read counts', dirichlet_prior, 'in' ,time.time()-ss,'seconds')
+    ss = time.time()
+    dirichlet_prior_persamples  = dirichlet_prior * Rn_reads / Rn_reads.sum()
+
     R_max = cluster_parameters[15]
-    Rc_reads = np.sum(cluster_centroids_read, axis=1, keepdims=True)
+    # Rc_reads = np.sum(cluster_centroids_read, axis=1, keepdims=True)
     # cluster_centroids_read_scaled = np.multiply(cluster_centroids_read, R_max/(R_max + Rc_reads)).astype(np.float32)
     # Rc_reads = cluster_centroids_read_scaled.sum(axis=1).astype(np.float32)
     
@@ -106,7 +124,7 @@ def components_by_merging_clusters(cluster_parameters, members, cluster_centroid
     # cluster_centroids_kmer_scaled = np.multiply(cluster_centroids_kmer, np.repeat(scale_down_kmer, 4, axis=1))
     # Rc_kmers = cluster_centroids_kmer_scaled.reshape(-1,64,4).sum(axis=2)
 
-    Rc_kmers = cluster_centroids_kmer.reshape(-1,64,4).sum(axis=2)
+    # Rc_kmers = cluster_centroids_kmer.reshape(-1,64,4).sum(axis=2)
 
     K = len(members)
     print(K, "K in components by merging clusters")
@@ -173,5 +191,6 @@ def cluster_by_connecting_centroids(cluster_parameters):
     components, num_components, numclust_incomponents = find_connected_components(links)
     np.savetxt(working_dir + "/components_reads", np.dstack((np.arange(len(components)), components))[0], fmt='%d')
     clusters = merge_members_by_connnected_components(components, num_components, members)
+    print("number of connected components", num_components)
     print("count_by_connecting_centroids took ", time.time() - s, "seconds")
     return clusters, numclust_incomponents

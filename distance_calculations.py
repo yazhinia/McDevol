@@ -73,7 +73,7 @@ def distance(*argv):
     an = argv[4]
     alpha = argv[5]
     flag = argv[6]
-    q = np.exp(-8)
+    q = np.exp(-4)
     if flag == 1:
         q = 0.6 #np.exp(-2)
         # rep_w_matrix = argv[7]

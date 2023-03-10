@@ -60,8 +60,8 @@ def binning(args):
     read_counts = read_counts.to_numpy(dtype=np.float32).T
     total_contigs_source = read_counts.shape[0]
 
-    sp80_inds = np.loadtxt(working_dir + '80sp_singlecentroid_inds', dtype=int)
-    read_counts = read_counts[sp80_inds]
+    # sp80_inds = np.loadtxt(working_dir + '80sp_singlecentroid_inds', dtype=int)
+    # read_counts = read_counts[sp80_inds]
 
     total_contigs, n_size = np.shape(read_counts)
 
@@ -134,7 +134,7 @@ def binning(args):
     # scale_down_kmer = R_max / (R_max + kmer_counts.reshape(-1,64,4).sum(axis=2))
     # kmer_counts = np.multiply(kmer_counts, np.repeat(scale_down_kmer, 4, axis=1))
 
-    kmer_counts = kmer_counts[sp80_inds]
+    # kmer_counts = kmer_counts[sp80_inds]
 
     trimercountsper_nt = kmer_counts.reshape(-1,64,4).sum(axis=0)
     Rc_kmers = kmer_counts.reshape(-1,64,4).sum(axis=2)
@@ -154,7 +154,7 @@ def binning(args):
     # kmer_counts = kmer_counts[sel_index]
     # Rc_kmers = Rc_kmers[sel_index]
     # contig_length = contig_length[sel_index]
-    contig_length = contig_length[sp80_inds]
+    # contig_length = contig_length[sp80_inds]
 
     # # """ end """
 
