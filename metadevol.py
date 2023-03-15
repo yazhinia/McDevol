@@ -45,7 +45,7 @@ def binning(args):
     """ clustering parameters (default) """
     d0 = 1.0
     d1 = d0
-    min_shared_contigs = 5
+    min_shared_contigs = 3
     
     """ load contig read counts """
     contigs = pd.read_csv(working_dir + 'contigs_labels', header=None, sep=' ').to_numpy()
@@ -53,15 +53,16 @@ def binning(args):
     contig_length = contigs[:,2].astype(int)
 
 
-    fractional_counts = pd.read_csv(working_dir + "total_count", header=None,sep=' ')
+    fractional_counts = pd.read_csv(working_dir + "total_count", header=None,sep=' ', engine='pyarrow')
     read_counts = fractional_counts.pivot_table(index = 1, columns = 0, values = 2)
     # read_counts = pd.read_pickle(working_dir + "X_pickle")
     del(fractional_counts)
-    read_counts = read_counts.to_numpy(dtype=np.float32).T
+    read_counts = read_counts.to_numpy().T
+    # read_counts = read_counts[:10000]
     total_contigs_source = read_counts.shape[0]
 
-    # sp80_inds = np.loadtxt(working_dir + '80sp_singlecentroid_inds', dtype=int)
-    # read_counts = read_counts[sp80_inds]
+    sp_inds = np.loadtxt(working_dir + '20sp_check/20sp_inds', dtype=int)
+    read_counts = read_counts[sp_inds]
 
     total_contigs, n_size = np.shape(read_counts)
 
@@ -75,12 +76,13 @@ def binning(args):
     # read_counts = np.multiply(read_counts, scale_down)
     Rc_reads = read_counts.sum(axis=1)
     Rn_reads = read_counts.sum(axis=0)
-
+   
     ss = time.time()
     dirichlet_prior = opt.optimize_alpha(read_counts, Rc_reads, Rn_reads, n_size)
     print('obtained alpha parameter for read counts', dirichlet_prior, 'in' ,time.time()-ss,'seconds')
     ss = time.time()
     dirichlet_prior_persamples  = dirichlet_prior * Rn_reads / Rn_reads.sum()
+    print("dirichlet_prior_persamples", dirichlet_prior_persamples)
 
     """ generate gamma parameters for Bayes factor in distance calculation """
 #     ss = time.time()
@@ -90,59 +92,59 @@ def binning(args):
 #     print('obtained gamma parameters in', time.time()-ss,'seconds')
     
 
-    """ load kmer counts """
-    kmer_counts = pd.read_csv(working_dir + "kmer_counts", header=None)
-    kmer_counts = kmer_counts.to_numpy(dtype=np.float32)
-    kmer_counts = kmer_counts.reshape(total_contigs_source, 256) # convert 1D array to a 2D array with {total_contigs, all 4-mers} shape  
-    kmer_counts = (kmer_counts / 2)
+    # """ load kmer counts """
+    # kmer_counts = pd.read_csv(working_dir + "kmer_counts", header=None)
+    # kmer_counts = kmer_counts.to_numpy(dtype=np.float32)
+    # kmer_counts = kmer_counts.reshape(total_contigs_source, 256) # convert 1D array to a 2D array with {total_contigs, all 4-mers} shape  
+    # kmer_counts = (kmer_counts / 2)
 
-    # kmer_counts = kmer_counts[longer_contig_inds]
+    # # kmer_counts = kmer_counts[longer_contig_inds]
 
-    print("processing kmer frequencies")
+    # print("processing kmer frequencies")
 
-    GC_fractions = pd.read_csv(working_dir + "GC_fractionof_contigs", header=None)
-    GC_fractions = GC_fractions.to_numpy()
+    # GC_fractions = pd.read_csv(working_dir + "GC_fractionof_contigs", header=None)
+    # GC_fractions = GC_fractions.to_numpy()
     
-    # GC_fractions = GC_fractions[longer_contig_inds]
+    # # GC_fractions = GC_fractions[longer_contig_inds]
 
-    # GC_fractions = np.delete(GC_fractions, sel_index, axis=0)
-    # print(np.shape(GC_fractions))
-    GC_tetramer = np.array([0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 2, 2, 1, 1, 2, 2, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1,
-                            2, 2, 1, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 1, 1, 2, 2,
-                            1, 1, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 2, 2, 1, 1,
-                            2, 2, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2, 2,
-                            2, 2, 3, 3, 2, 2, 3, 3, 1, 1, 2, 2, 1, 1, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 1, 1,
-                            2, 2, 1, 1, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 1, 1, 2, 2, 1, 1, 2, 2, 2, 2, 3, 3,
-                            2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 3, 3, 3, 3, 4, 4, 3, 3, 4, 4, 2, 2, 3, 3, 2, 2,
-                            3, 3, 3, 3, 4, 4, 3, 3, 4, 4, 1, 1, 2, 2, 1, 1, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3,
-                            1, 1, 2, 2, 1, 1, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 3, 3, 3, 3,
-                            4, 4, 3, 3, 4, 4, 2, 2, 3, 3, 2, 2, 3, 3, 3, 3, 4, 4, 3, 3, 4, 4])
+    # # GC_fractions = np.delete(GC_fractions, sel_index, axis=0)
+    # # print(np.shape(GC_fractions))
+    # GC_tetramer = np.array([0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 2, 2, 1, 1, 2, 2, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1,
+    #                         2, 2, 1, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 1, 1, 2, 2,
+    #                         1, 1, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 2, 2, 1, 1,
+    #                         2, 2, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2, 2,
+    #                         2, 2, 3, 3, 2, 2, 3, 3, 1, 1, 2, 2, 1, 1, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 1, 1,
+    #                         2, 2, 1, 1, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 1, 1, 2, 2, 1, 1, 2, 2, 2, 2, 3, 3,
+    #                         2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 3, 3, 3, 3, 4, 4, 3, 3, 4, 4, 2, 2, 3, 3, 2, 2,
+    #                         3, 3, 3, 3, 4, 4, 3, 3, 4, 4, 1, 1, 2, 2, 1, 1, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3,
+    #                         1, 1, 2, 2, 1, 1, 2, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 3, 3, 3, 3,
+    #                         4, 4, 3, 3, 4, 4, 2, 2, 3, 3, 2, 2, 3, 3, 3, 3, 4, 4, 3, 3, 4, 4])
     
-    """ process repeat regions """
-    fGC_tGC = GC_fractions ** GC_tetramer
-    fAT_tAT = (1 - GC_fractions) ** (4 - GC_tetramer)
-    ekmer_counts = (np.tile((contig_length - 3)[:, None], (1,256)) * fAT_tAT * fGC_tGC)/16
-    repeat_index = np.nonzero((kmer_counts / ekmer_counts)>3) # theory suggested z-score but we use ratio for detecting repeat index 
-    setind_zero = np.vstack((np.repeat(repeat_index[0],4),\
-        np.repeat(repeat_index[1] // 4  * 4, 4) + np.tile([0, 1, 2, 3], np.shape(repeat_index[1]))))
-    kmer_counts[setind_zero[0],setind_zero[1]] = 0
-    del(ekmer_counts, GC_fractions, setind_zero, repeat_index)
+    # """ process repeat regions """
+    # fGC_tGC = GC_fractions ** GC_tetramer
+    # fAT_tAT = (1 - GC_fractions) ** (4 - GC_tetramer)
+    # ekmer_counts = (np.tile((contig_length - 3)[:, None], (1,256)) * fAT_tAT * fGC_tGC)/16
+    # repeat_index = np.nonzero((kmer_counts / ekmer_counts)>3) # theory suggested z-score but we use ratio for detecting repeat index 
+    # setind_zero = np.vstack((np.repeat(repeat_index[0],4),\
+    #     np.repeat(repeat_index[1] // 4  * 4, 4) + np.tile([0, 1, 2, 3], np.shape(repeat_index[1]))))
+    # kmer_counts[setind_zero[0],setind_zero[1]] = 0
+    # del(ekmer_counts, GC_fractions, setind_zero, repeat_index)
 
 
-    """ process high kmer counts """
-    kmer_counts_source = kmer_counts
-    # scale_down_kmer = R_max / (R_max + kmer_counts.reshape(-1,64,4).sum(axis=2))
-    # kmer_counts = np.multiply(kmer_counts, np.repeat(scale_down_kmer, 4, axis=1))
+    # """ process high kmer counts """
+    # kmer_counts_source = kmer_counts
+    # # scale_down_kmer = R_max / (R_max + kmer_counts.reshape(-1,64,4).sum(axis=2))
+    # # kmer_counts = np.multiply(kmer_counts, np.repeat(scale_down_kmer, 4, axis=1))
 
-    # kmer_counts = kmer_counts[sp80_inds]
+    # kmer_counts = kmer_counts[sp20_inds]
 
-    trimercountsper_nt = kmer_counts.reshape(-1,64,4).sum(axis=0)
-    Rc_kmers = kmer_counts.reshape(-1,64,4).sum(axis=2)
+    # trimercountsper_nt = kmer_counts.reshape(-1,64,4).sum(axis=0)
+    # Rc_kmers = kmer_counts.reshape(-1,64,4).sum(axis=2)
 
-    ss = time.time()
-    dirichlet_prior_kmers, dirichlet_prior_perkmers = optimize_prior_fortrimers(kmer_counts, Rc_kmers, trimercountsper_nt)
-    print('obtained alpha parameters for kmer counts in', time.time()-ss,'seconds')
-    del(trimercountsper_nt)
+    # ss = time.time()
+    # # dirichlet_prior_kmers, dirichlet_prior_perkmers = optimize_prior_fortrimers(kmer_counts, Rc_kmers, trimercountsper_nt)
+    # print('obtained alpha parameters for kmer counts in', time.time()-ss,'seconds')
+    # del(trimercountsper_nt)
 
 
     # # """ filter data for selected contigs """
@@ -154,7 +156,14 @@ def binning(args):
     # kmer_counts = kmer_counts[sel_index]
     # Rc_kmers = Rc_kmers[sel_index]
     # contig_length = contig_length[sel_index]
-    # contig_length = contig_length[sp80_inds]
+    # contig_length = contig_length[sp_inds]
+    # contig_names = contig_names[sp_inds]
+
+    kmer_counts =1
+    Rc_kmers = 1
+    kmer_counts_source = 1
+    dirichlet_prior_kmers = 1
+    dirichlet_prior_perkmers = np.zeros(10)
 
     # # """ end """
 
@@ -162,14 +171,15 @@ def binning(args):
                           dirichlet_prior, dirichlet_prior_persamples, kmer_counts, Rc_kmers, \
                           dirichlet_prior_kmers, dirichlet_prior_perkmers.flatten(), \
                           d0, d1, min_shared_contigs, working_dir, read_counts_source, kmer_counts_source, R_max])   
-    # clusters, numclust_incomponents = cluster_by_connecting_centroids(cluster_parameters)
+    clusters, numclust_incomponents = cluster_by_connecting_centroids(cluster_parameters)
     # ccm.cluster_by_connecting_centroids(cluster_parameters)
-    clusters, numclust_incomponents = ccm.cluster_by_connecting_centroids(cluster_parameters)
+    # clusters, numclust_incomponents = ccm.cluster_by_connecting_centroids(cluster_parameters)
     del(kmer_counts, cluster_parameters)
 
     bins_ = nmf_connected_components(read_counts, contig_length, clusters, numclust_incomponents, dirichlet_prior_persamples, dirichlet_prior)
-    print(bins_)
-    # np.savetxt(args.outdir + "/bin_assignments_newalgo", np.stack((contig_names[bins_[0]], bins_[1])).T, fmt='%s,%d',delimiter=" ")
+    print(len(np.unique(bins_[1])), "bins obtained in total")
+    print(bins_[1])
+    np.savetxt(args.outdir + "/tmp/20sp_check/bin_assignments_old_cc", np.stack((contig_names[bins_[0]], bins_[1])).T, fmt='%s\t%d')
     # subprocess.run(["/big/work/metadevol/scripts/get_sequence_bybin " + str(working_dir) + "  ../bin_assignments_newalgo" + " " +str(args.contigs) + " " + str(args.output) + " " + str(args.outdir)], shell=True)
     print('metagenome binning is completed in', time.time()-s,'seconds')
     gc.collect()
