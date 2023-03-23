@@ -12,7 +12,7 @@ Shown below an illustration for the underlying basis for binning.
 `python3 main.py -i bamfiles -c contig.fasta`
 
 `-i | --input` directory in which all bamfiles present
-`-c | --contigs fasta file of contig sequenes assembled from all samples (sample-wise assembly)
+`-c | --contigs` fasta file of contig sequenes assembled from all samples (sample-wise assembly)
 
 ## additional options
 
