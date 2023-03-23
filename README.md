@@ -12,13 +12,17 @@ Shown below an illustration for the underlying basis for binning.
 `python3 main.py -i bamfiles -c contig.fasta`
 
 `-i | --input` directory in which all bamfiles present
+
 `-c | --contigs` fasta file of contig sequenes assembled from all samples (sample-wise assembly)
 
 ## additional options
 
 `-l | --minlength` minimum length of contigs to be considered for binning [default 1000kb]
+
 `-o | --output` name of output file [default, date]
+
 `-d | --outdir` output directory [default, working directory]
+
 
 ## help
 `python3 main.py -h or python3 main.py`
