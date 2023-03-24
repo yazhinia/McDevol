@@ -26,3 +26,7 @@ Shown below an illustration for the underlying basis for binning.
 
 ## help
 `python3 main.py -h or python3 main.py`
+
+
+## requirement
+MetaDevol uses bamtools API for alignment file processing. Users are requested to install it separately. https://github.com/pezmaster31/bamtools/wiki
