@@ -29,4 +29,4 @@ Shown below an illustration for the underlying basis for binning.
 
 
 ## requirement
-MetaDevol uses bamtools API for alignment file processing. Users are requested to install it separately. https://github.com/pezmaster31/bamtools/wiki
+MetaDevol uses bamtools API for alignment file processing. Users are requested to install it separately (refer https://github.com/pezmaster31/bamtools/wiki).
