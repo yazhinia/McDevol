@@ -14,6 +14,7 @@ def assignment(Z_bc, contig_length, mode):
     Rc  = np.sum(Z_bc, axis=0)
     
     if mode == 0:
+
         weights = Z_bc ** 5 / Rc ** 4
         cov_b1 = np.sum(weights  * (Z_bc / contig_length) , axis = 1)
         cov_b2 = weights.sum(axis=1)
@@ -38,12 +39,12 @@ def assignment(Z_bc, contig_length, mode):
 
             cov_b1 = (Z_bc / contig_length).sum(axis=1)
             cov_b2 = Z_bc.sum(axis=1)
+
         print(cov_b2)
         cov_b = cov_b1 / cov_b2
         pi_bc = (Z_bc / cov_b[:,None]) / (Z_bc / cov_b[:,None]).sum(axis = 0)
         bins = np.argmax(pi_bc, axis=0)
-
-
+        bins = get_binindex(bins)
         bins_m = np.nonzero(pi_bc >= np.max(pi_bc, axis=0) * 0.6)
 
     return bins, bins_m

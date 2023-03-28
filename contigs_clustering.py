@@ -5,8 +5,7 @@ import gc
 import numpy as np
 import distance_calculations as dist
 import metadevol_distance as calc_distance
-# from tqdm.auto import tqdm
-import click, sys
+from alive_progress import alive_bar
 
 def cluster_by_centroids(argv):
     read_counts = argv[0]
@@ -21,7 +20,6 @@ def cluster_by_centroids(argv):
     d0 = argv[9]
     d1 = argv[10]
     working_dir = argv[12]
-    members_temp = []
     members = []
     cluster_curr = 0
     cluster_assigned = np.zeros(total_contigs, dtype=int) - 1
@@ -31,26 +29,28 @@ def cluster_by_centroids(argv):
     s = time.time()
     iterate_ind = np.argsort(Rc_reads)[::-1]
     print("entering iterative distance_calculation", flush=True)
-    print(iterate_ind, iterate_ind[3])
+    print(iterate_ind)
 
-    distance_list = []
+    # distance_list = []
     clustercentroids_list = []
     
-    with click.progressbar(range(total_contigs), width=100, fill_char=">", empty_char=" ", show_pos=True, file=sys.stderr) as bar:
-        for c, i in zip(iterate_ind, bar):
+    with alive_bar(total_contigs, title='contigs processed', spinner=False, theme='classic') as bar:
+
+        for c in iterate_ind:
 
             if cluster_assigned[c] < 0 :
 
-                distance = dist.distance(read_counts[c], read_counts, Rc_reads[c], Rc_reads, dirichlet_prior_persamples, dirichlet_prior, 0)
+                # distance = dist.distance(read_counts[c], read_counts, Rc_reads[c], Rc_reads, dirichlet_prior, dirichlet_prior_persamples, 0)
                 # distance_bykmers = dist.distance(kmer_counts[c], kmer_counts, Rc_kmers[c], Rc_kmers, dirichlet_prior_perkmers, dirichlet_prior_kmers, 1)
                 # distance = distance_byreads + distance_bykmers
-                # distance = calc_distance.compute_dist(c, read_counts, kmer_counts, Rc_reads, Rc_kmers, dirichlet_prior, dirichlet_prior_persamples, dirichlet_prior_kmers, dirichlet_prior_perkmers)
+                # distance = calc_distance.compute_kmercountdist(c, kmer_counts, Rc_kmers, dirichlet_prior_kmers, dirichlet_prior_perkmers)
+                distance = calc_distance.compute_dist(c, read_counts, kmer_counts, Rc_reads, Rc_kmers, dirichlet_prior, dirichlet_prior_persamples, dirichlet_prior_kmers, dirichlet_prior_perkmers)
                 # distance = calc_distance.compute_readcountdist(c, read_counts, Rc_reads, dirichlet_prior, dirichlet_prior_persamples)
                 inds = np.nonzero(distance <= dist_to_assigned)[0] # " there can be empty list "
                 # inds1 = np.nonzero(distance1 <= dist_to_assigned)[0]
 
                     
-                distance_list.append(distance)
+                # distance_list.append(distance)
 
                 if len(inds) > 0 :
 
@@ -72,8 +72,11 @@ def cluster_by_centroids(argv):
                 cluster_curr += 1
                 clustercentroids_list.append(c)
 
-    np.save(working_dir + '20sp_check/clustercentroids_list_scp', np.array(clustercentroids_list))        
-    np.save(working_dir + '20sp_check/distance_list_scp.npy', distance_list)
+            bar()
+
+
+    # np.save(working_dir + 'try/length_2500/clustercentroids_list', np.array(clustercentroids_list))        
+    # np.save(working_dir + 'try/length_2500/distance_list.npy', distance_list)
     # del(distance_list)
 
 
@@ -88,28 +91,12 @@ def cluster_by_centroids(argv):
             neighbors[c].append(cluster_curr)
             cluster_curr += 1
 
-    distancebyreadcounts_centroidlist = []
-    distance_centroidlist = []
-    read_countsubset = read_counts[clustercentroids_list]
-    Rc_readssubset = Rc_reads[clustercentroids_list]
-    print(np.shape(read_countsubset), np.shape(Rc_readssubset))
-    for c in range(len(clustercentroids_list)):
-        # distance = calc_distance.compute_readcountdist(c, read_countsubset, Rc_readssubset, dirichlet_prior, dirichlet_prior_persamples)
-        # distance1 = calc_distance.compute_connectedcomponentdist(c, read_countsubset, Rc_readssubset, dirichlet_prior, dirichlet_prior_persamples)
-        distance = dist.distance(read_countsubset[c], read_countsubset, Rc_readssubset[c],Rc_readssubset, dirichlet_prior, dirichlet_prior_persamples, 0)
-        distance1 = dist.distance_connected_component(read_countsubset[c], read_countsubset, Rc_readssubset[c], Rc_readssubset, dirichlet_prior, dirichlet_prior_persamples, 0)
-        distancebyreadcounts_centroidlist.append(distance)
-        distance_centroidlist.append(distance1)
-    
-    
-    np.save(working_dir + '20sp_check/distance_centroidlist_scp.npy', distance_centroidlist)
-    np.save(working_dir + '20sp_check/distance_centroidlist_readcountcalc_scp.npy', distancebyreadcounts_centroidlist)
-    # with open(working_dir + "/20sp_check/cluster_assigned_testforold", 'w+') as file:
+    # with open(working_dir + "/try/length_2500/cluster_assigned_testforold", 'w+') as file:
     #     for f in range(len(members)):
     #         for q in members[f]:
     #             file.write(str(q) + " " + str(f) + "\n")
 
-    np.savetxt(working_dir + '/20sp_check/cluster_assigned', cluster_assigned, fmt='%d')
+    np.savetxt(working_dir + '/cluster_assigned_both', cluster_assigned, fmt='%d')
 
     print("Obtained {} clusters from initial clustering".format(len(members)))
     print("Initial clustering took:", time.time() - s,"seconds")
@@ -172,6 +159,7 @@ def find_connected_components(links):
     return components, num_components, numclust_incomponents
 
 def merge_members_by_connnected_components(components, num_components, members):
+    
     K = len(components)
     clusters = [[] for i in range(num_components)]
 
@@ -194,7 +182,7 @@ def cluster_by_connecting_centroids(cluster_parameters):
     print(len(members))
     links = count_numbers_of_sharedcontigs(len(members), neighbors, min_shared_contigs)
     components, num_components, numclust_incomponents = find_connected_components(links)
-    np.savetxt(working_dir + "/20sp_check/components_onlyreads", np.dstack((np.arange(len(components)), components))[0], fmt='%d')
+    np.savetxt(working_dir + "/components_bothlinkage", np.dstack((np.arange(len(components)), components))[0], fmt='%d')
     print("number of connected components", num_components)
     clusters = merge_members_by_connnected_components(components, num_components, members)
     print("count_by_connecting_centroids took ", time.time() - s, "seconds")

@@ -18,6 +18,7 @@
 struct al_data{
     std::string read;
     int32_t contig;
+    unsigned int sample;
     unsigned int pair_dir; 
     bool paired;
     float sequence_identity;
@@ -80,7 +81,7 @@ std::pair<float, float> get_seqid_aligncov(BamTools::BamAlignment al,unsigned in
     }
 }
 
-void construct_umap(const BamTools::BamReader& reader, std::unordered_map<int, float>& umap, const int& minlength, bool flag, std::string& working_dir) {
+void construct_umap(const BamTools::BamReader& reader, std::unordered_map<int, std::pair<int, float>>& umap, const int& minlength, bool flag, std::string& working_dir) {
     BamTools::SamHeader header;
     header = reader.GetHeaderText();
     std::stringstream ss(header.ToString());
@@ -99,6 +100,7 @@ void construct_umap(const BamTools::BamReader& reader, std::unordered_map<int, f
                 st >> g;
                 contig_id = g;
                 int pos = g.find("C");
+                unsigned int sample_id = std::stoi(g.substr(4,pos-4));
                 g = g.substr(pos+1);
                 st >> length;
                 pos = length.find(":");
@@ -106,15 +108,15 @@ void construct_umap(const BamTools::BamReader& reader, std::unordered_map<int, f
 
                 if (std::stoi(length) >= minlength) { // check length of contigs and insert to umap only if above minimum length for contigs
                     if (!flag) {
-                        umap.insert({ref_id, init_count});
+                        umap.insert({ref_id, std::make_pair(sample_id, init_count)});
                     } else {
                         std::string selected_contigs= working_dir + "/selected_contigs";
                         std::fstream writetofile;
                         writetofile.open(selected_contigs, std::fstream::in | std::fstream::out | std::fstream::app);
                         if (!writetofile) {
-                            writetofile << ref_id << " " << contig_id.substr(contig_id.find(":")+1,-1) << " " << length << "\n"; // write index, name and length of selected contigs to a file
+                            writetofile << ref_id << " " << contig_id.substr(contig_id.find(":")+1,-1) << "\n"; // write index, name and length of selected contigs to a file
                         } else {
-                            writetofile << ref_id << " " << contig_id.substr(contig_id.find(":")+1,-1) << " " << length << "\n"; // write index, name and length of selected contigs to a file
+                            writetofile << ref_id << " " << contig_id.substr(contig_id.find(":")+1,-1) << "\n"; // write index, name and length of selected contigs to a file
                         }
                         writetofile.close();    
                     }
@@ -127,18 +129,27 @@ void construct_umap(const BamTools::BamReader& reader, std::unordered_map<int, f
     else {
         /* could not parse header of bamfile */
         perror ("Input bamfile is not correct");
-        exit(1);
+        exit(0);
     }
 }
 
-std::string convertPyString(PyObject* pyString);
 
-void obtain_readcounts(std::string &bamfile, std::string &input_dir, std::string &working_dir, const int minlength) {
-
+void obtain_readcounts(std::string bamfile, std::string input_dir, std::string working_dir, const int minlength) {
+ 
     auto start = std::chrono::high_resolution_clock::now();
 
-    std::unordered_map<int, float> umap;
+    std::unordered_map<int, std::pair<int, float>> umap;
     
+    // DIR *dir;
+    // struct dirent *ent;
+    // if ((dir = opendir (working_dir)) != NULL) {
+    //     closedir (dir);
+    // } else {
+    // /* could not open directory */
+    //     perror ("Input folder doesn't have bam files");
+    //     exit(0);
+    // }
+
     BamTools::BamReader reader;
     BamTools::BamAlignment aln;
     if (reader.Open(input_dir + "/" + bamfile)) {
@@ -160,16 +171,13 @@ void obtain_readcounts(std::string &bamfile, std::string &input_dir, std::string
         size_t lastindex = bamfile.find_last_of("."); 
         std::string out = bamfile.substr(0, lastindex); 
         std::tuple<std::string, std::string, int32_t> assign_qstring;
-        std::unordered_map<int, float> umap;
+        std::unordered_map<int, std::pair<int, float>> umap;
         construct_umap(reader, umap, minlength, false, working_dir);
 
         std::ofstream outfile;
         outfile.open(working_dir + "/" + out +"_count");
-        std::ofstream eachcount;
-        eachcount.open(working_dir + "/" + out +"_eachcount");
-
-        std::ofstream pre_eachcount;
-        pre_eachcount.open(working_dir + "/" + out +"_preeachcount");
+        // std::ofstream eachcount;
+        // eachcount.open(working_dir + "/" + out +"_eachcount");
 
         while (reader.GetNextAlignment(aln)) {
     
@@ -188,6 +196,7 @@ void obtain_readcounts(std::string &bamfile, std::string &input_dir, std::string
             auto check_contig = umap.find(aln.RefID);
 
             if (check_contig != umap.end()) {
+                unsigned int sample_id = check_contig->second.first;
                 std::pair<float, float> alignment_stat;
                 alignment_stat = get_seqid_aligncov(aln, read_length);
                 
@@ -200,11 +209,12 @@ void obtain_readcounts(std::string &bamfile, std::string &input_dir, std::string
                     else if (aln.IsSecondMate()) {
                         pair_flag = 2;
                     } else {};
-
-                    if (parsed_al.empty()) {
-                        parsed_al.push_back({aln.Name, aln.RefID, pair_flag, aln.IsProperPair(), alignment_stat.first});
-                    }
                     
+                    
+                    if (parsed_al.empty()) {
+                        parsed_al.push_back({aln.Name, aln.RefID, sample_id, pair_flag, aln.IsProperPair(), alignment_stat.first});
+                    }
+
                     else {
                         if (parsed_al.rbegin()->read == aln.Name) { // check read name is same
                             auto ic = std::find_if(parsed_al.rbegin(), parsed_al.rend(),[&](const al_data& a) {return a.contig == aln.RefID;});
@@ -221,11 +231,11 @@ void obtain_readcounts(std::string &bamfile, std::string &input_dir, std::string
                             }
                             else {
                                 if (aln.IsProperPair() == 1) { // if read mapped to different contig, add to the vector
-                                    parsed_al.push_back({aln.Name, aln.RefID, pair_flag, aln.IsProperPair(), alignment_stat.first});;
+                                    parsed_al.push_back({aln.Name, aln.RefID, sample_id, pair_flag, aln.IsProperPair(), alignment_stat.first});;
                                 }
                                 else { // if read mapped to different contig and mate pair didn't mapped, add to the vector only sequence identity is greater than or equal 
                                     if (parsed_al.rbegin()->sequence_identity <= alignment_stat.first) {
-                                        parsed_al.push_back({aln.Name, aln.RefID, pair_flag, aln.IsProperPair(), alignment_stat.first});     
+                                        parsed_al.push_back({aln.Name, aln.RefID, sample_id, pair_flag, aln.IsProperPair(), alignment_stat.first});     
                                     } else {continue;}
                                 }
                             }  
@@ -233,38 +243,53 @@ void obtain_readcounts(std::string &bamfile, std::string &input_dir, std::string
 
                         else { // new read alignment
                             auto it = std::max_element(parsed_al.begin(), parsed_al.end(),[](const al_data& a,const al_data& b) { return a.sequence_identity < b.sequence_identity;});
+                            parsed_al.erase(std::remove_if(parsed_al.begin(),parsed_al.end(), [&](const al_data& a) {return it->sequence_identity > a.sequence_identity;}), parsed_al.end());
+                            // for (size_t j = 0; j < parsed_al.size(); j++) {
+                            //     eachcount << parsed_al[j].read << " " << parsed_al[j].contig << " " << parsed_al[j].sample << " " << parsed_al[j].pair_dir << " " << parsed_al[j].paired << " " << parsed_al[j].sequence_identity << "\n";
+                            // }
+                            std::unordered_set<int> sample_idlist;
                             
                             for (size_t j = 0; j < parsed_al.size(); j++) {
-                                pre_eachcount << parsed_al[j].read << " " << parsed_al[j].contig << " " << parsed_al[j].pair_dir << " " << parsed_al[j].paired << " " << parsed_al.size() << " " << parsed_al[j].sequence_identity << "\n";
+                                // get set of sample ids in which best aligned contigs were found
+                                sample_idlist.insert(parsed_al[j].sample);
                             }
-
-                            parsed_al.erase(std::remove_if(parsed_al.begin(),parsed_al.end(), [&](const al_data& a) {return it->sequence_identity > a.sequence_identity;}), parsed_al.end());
-                            for (size_t j = 0; j < parsed_al.size(); j++) {
-                                eachcount << parsed_al[j].read << " " << parsed_al[j].contig << " " << parsed_al[j].pair_dir << " " << parsed_al[j].paired << " " << parsed_al.size() << " " << parsed_al[j].sequence_identity << "\n";
-                            }
-                           
-                            unsigned int paired_count = std::count_if(parsed_al.begin(), parsed_al.end(),[](const al_data& a) { return a.paired == 1;});
-                            unsigned int non_paired_count = parsed_al.size() - paired_count;
-
-                            float val1 = 1.0f / parsed_al.size() ;
-                            float val2 = val1 / 2.0f;
-                            float val3 = val2 * non_paired_count;
-                            float val4 = val3 / paired_count;
-                            for (size_t r = 0; r < parsed_al.size(); r++) {
-                                auto it = umap.find(parsed_al[r].contig);
-                                if (parsed_al[r].paired) {
-                                    it->second = it->second + val1 + val4 ;
-                                }
-                                else {
-                                    it->second = it->second + val2;
-                                }
                                 
+                            for (const unsigned int& s : sample_idlist) {
+                                std::vector<al_data> parsed_al_persample;
+                                auto it = parsed_al.begin();
+                                while ((it = std::find_if(it, parsed_al.end(), [&](const al_data& a){return a.sample == s; })) != parsed_al.end()) {
+                                    parsed_al_persample.push_back(*it);
+                                    it++;
+                                }
+                                unsigned int paired_count = std::count_if(parsed_al_persample.begin(), parsed_al_persample.end(),[](const al_data& a) { return a.paired == 1;});
+                                unsigned int non_paired_count = parsed_al_persample.size() - paired_count;
+
+                                float val1 = 1.0f / parsed_al_persample.size() ;
+                                float val2 = val1 / 2.0f;
+                                float val3 = val2 * non_paired_count;
+                                float val4 = val3 / paired_count;
+                                for (size_t r = 0; r < parsed_al_persample.size(); r++) {
+                                    auto it = umap.find(parsed_al_persample[r].contig);
+                                    if (it->second.first == s) {
+                                        if (parsed_al_persample[r].paired) {
+                                            it->second.second = it->second.second + val1 + val4 ;
+                                        }
+                                        else {
+                                            it->second.second = it->second.second + val2;
+                                        }
+                                    }
+                                    else {
+                                        std::cout << "header doesn't match with sample ids\n";
+                                        exit(0);
+                                    }
+                                    
+                                }
+                                parsed_al_persample.clear();
                             }
                             parsed_al.clear();
-                            parsed_al.push_back({aln.Name, aln.RefID, pair_flag, aln.IsProperPair(), alignment_stat.first});
+                            parsed_al.push_back({aln.Name, aln.RefID, sample_id, pair_flag, aln.IsProperPair(), alignment_stat.first});
                         }
                     }
-
                 }
             }
         
@@ -273,11 +298,10 @@ void obtain_readcounts(std::string &bamfile, std::string &input_dir, std::string
 
         parsed_al.clear();
         for (auto const & k: umap) {
-            outfile << k.first << " " << out << " " << k.second << "\n";
+            outfile << k.first << " " << out << " " << k.second.second << "\n";
         }
         outfile.close();
-        eachcount.close();
-        pre_eachcount.close();
+        // eachcount.close();
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::seconds>(stop - start);
         std::cout << "completed writing counts for sample " << out << " in " << duration.count() << " seconds\n";
@@ -285,7 +309,7 @@ void obtain_readcounts(std::string &bamfile, std::string &input_dir, std::string
 
     else {
         perror ("Input error! please check input");
-        exit(1);
+        exit(0);
     }
     umap.clear();
     reader.Close();
@@ -293,6 +317,8 @@ void obtain_readcounts(std::string &bamfile, std::string &input_dir, std::string
 
 namespace py = pybind11;
 
+
 PYBIND11_MODULE(bam2counts, m) {
+
 m.def("obtain_readcounts", &obtain_readcounts, "obtain fractional read counts from each metagenomic sample", py::arg("bamfile"), py::arg("input_dir"), py::arg("working_dir"), py::arg("minlength"));
 }
