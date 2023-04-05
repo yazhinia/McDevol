@@ -19,11 +19,11 @@ def cluster_by_centroids(argv):
     dirichlet_prior_perkmers = argv[8].flatten()
     d0 = argv[9]
     d1 = argv[10]
-    working_dir = argv[12]
+    tmp_dir = argv[12]
     members = []
     cluster_curr = 0
     cluster_assigned = np.zeros(total_contigs, dtype=int) - 1
-    dist_to_assigned = np.zeros(total_contigs) + d0
+    dist_to_assigned = np.zeros(total_contigs, dtype=float) + d0
     print(cluster_assigned.shape[0], "contigs are being clustered")
     neighbors = np.empty((total_contigs, 0)).tolist()
     s = time.time()
@@ -75,8 +75,8 @@ def cluster_by_centroids(argv):
             bar()
 
 
-    # np.save(working_dir + 'try/length_2500/clustercentroids_list', np.array(clustercentroids_list))        
-    # np.save(working_dir + 'try/length_2500/distance_list.npy', distance_list)
+    # np.save(tmp_dir + 'try/length_2500/clustercentroids_list', np.array(clustercentroids_list))        
+    # np.save(tmp_dir + 'try/length_2500/distance_list.npy', distance_list)
     # del(distance_list)
 
 
@@ -84,19 +84,18 @@ def cluster_by_centroids(argv):
         if len(np.nonzero(cluster_assigned==k)[0]) > 0:
             members.append(np.nonzero(cluster_assigned==k)[0])
 
-    for c in range(total_contigs):
-        if cluster_assigned[c] < 0:
-            cluster_assigned[c] = cluster_curr
-            members.append([c])
-            neighbors[c].append(cluster_curr)
-            cluster_curr += 1
+    for c in np.nonzero(cluster_assigned < 0)[0]:
+        cluster_assigned[c] = cluster_curr
+        members.append([c])
+        neighbors[c].append(cluster_curr)
+        cluster_curr += 1
 
-    # with open(working_dir + "/try/length_2500/cluster_assigned_testforold", 'w+') as file:
+    # with open(tmp_dir + "/try/length_2500/cluster_assigned_testforold", 'w+') as file:
     #     for f in range(len(members)):
     #         for q in members[f]:
     #             file.write(str(q) + " " + str(f) + "\n")
 
-    np.savetxt(working_dir + '/cluster_assigned_both', cluster_assigned, fmt='%d')
+    np.savetxt(tmp_dir + '/cluster_assigned_both', cluster_assigned, fmt='%d')
 
     print("Obtained {} clusters from initial clustering".format(len(members)))
     print("Initial clustering took:", time.time() - s,"seconds")
@@ -106,7 +105,7 @@ def cluster_by_centroids(argv):
 
 def count_numbers_of_sharedcontigs(K, neighbors, min_shared_contigs):
     s = time.time()
-    shared = np.zeros([K,K])
+    shared = np.zeros([K,K], dtype=int)
     print("K")
     for c in np.arange(len(neighbors)):
 
@@ -129,7 +128,7 @@ def count_numbers_of_sharedcontigs(K, neighbors, min_shared_contigs):
 def find_connected_components(links):
     s = time.time()
     K = len(links)
-    components = np.zeros(K).astype(int) - 1
+    components = np.zeros(K, dtype=int) - 1
     component_curr = 0
 
     for k in np.arange(K):
@@ -176,13 +175,13 @@ def cluster_by_connecting_centroids(cluster_parameters):
     s = time.time()
     argv = cluster_parameters
     min_shared_contigs = argv[11]
-    working_dir = argv[12]
+    tmp_dir = argv[12]
     members, neighbors = cluster_by_centroids(cluster_parameters)
     print("distance calculation time:", time.time() - s, "seconds")
     print(len(members))
     links = count_numbers_of_sharedcontigs(len(members), neighbors, min_shared_contigs)
     components, num_components, numclust_incomponents = find_connected_components(links)
-    np.savetxt(working_dir + "/components_bothlinkage", np.dstack((np.arange(len(components)), components))[0], fmt='%d')
+    np.savetxt(tmp_dir + "/components_bothlinkage", np.dstack((np.arange(len(components)), components))[0], fmt='%d')
     print("number of connected components", num_components)
     clusters = merge_members_by_connnected_components(components, num_components, members)
     print("count_by_connecting_centroids took ", time.time() - s, "seconds")

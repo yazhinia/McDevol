@@ -9,9 +9,10 @@ from multiprocessing.pool import Pool
 from contigs_clustering import cluster_by_connecting_centroids
 import contigs_clustering_modified as ccm
 from nmf_connected_components import nmf_connected_components
-import nmf_connected_components_modified as nmfm
 
-import bam2counts
+import density_based_clustering as dc
+
+import bam2counts as bc
 from datetime import datetime
 
 def optimize_prior_fortrimers(kmer_counts, Rc_kmers, trimercountsper_nt):
@@ -25,27 +26,31 @@ def optimize_prior_fortrimers(kmer_counts, Rc_kmers, trimercountsper_nt):
 
     return alpha_values, awa_values
 
-# def call_bam2count(*arg):
-#     bam2counts.obtain_readcounts(arg[0])
+def call_bam2counts(bam):
+    bc.obtain_readcounts(bam, input_dir, tmp_dir, minlength)
 
-# def calcreadcounts(input_dir, working_dir, minlength):
-#     bamfiles = [(f, input_dir, working_dir, minlength) for f in os.listdir(input_dir) if f.endswith('.bam')]
-#     with Pool() as pool:
-#         pool.map(call_bam2count, bamfiles)
+def calcreadcounts(bamfiles):
+    with Pool() as pool:
+        pool.map(call_bam2counts, bamfiles)
 
 def binning(args):
+    global input_dir, tmp_dir, minlength
     input_dir = args.input
-    working_dir = args.outdir + '/tmp/'
+    tmp_dir = args.outdir + '/tmp/'
+    minlength = args.minlength
     s = time.time()
-    print(working_dir)
+    print(tmp_dir)
     print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
     """ obtain read counts """
-    # calcreadcounts(input_dir, working_dir, args.minlength)
-    """ obtain kmer counts """
-    subprocess.run(["cat " + str(working_dir) + "*_count > " + str(working_dir) + "total_readcount"], shell=True)
+    # bamfiles = [f for f in os.listdir(input_dir) if f.endswith('.bam')]
+    # calcreadcounts(bamfiles)
 
-    #subprocess.run(["/big/work/metadevol/scripts/kmerfreq " + str(working_dir) + "  " +str(args.contigs)], shell=True)
+
+    """ obtain kmer counts """
+    subprocess.run(["cat " + str(tmp_dir) + "*_count > " + str(tmp_dir) + "total_readcount"], shell=True)
+
+    #subprocess.run(["/big/work/metadevol/scripts/kmerfreq " + str(tmp_dir) + "  " +str(args.contigs)], shell=True)
 
     """ clustering parameters (default) """
     d0 = 1.0
@@ -53,11 +58,11 @@ def binning(args):
     min_shared_contigs = 100
     
     """ load contig read counts """
-    contigs = pd.read_csv(working_dir + 'selected_contigs', header=None, sep=' ').to_numpy()
+    contigs = pd.read_csv(tmp_dir + 'selected_contigs', header=None, sep=' ').to_numpy()
     contig_names = contigs[:,1]
     contig_length = contigs[:,2].astype(int)
 
-    fractional_counts = pd.read_csv(working_dir + "total_readcount", header=None,sep=' ')
+    fractional_counts = pd.read_csv(tmp_dir + "total_readcount", header=None,sep=' ')
     read_counts = fractional_counts.pivot_table(index = 1, columns = 0, values = 2)
     del(fractional_counts)
 
@@ -94,7 +99,7 @@ def binning(args):
 #     print('obtained gamma parameters in', time.time()-ss,'seconds')
     
     """ load kmer counts """
-    kmer_counts = pd.read_csv(working_dir + "kmer_counts", header=None)
+    kmer_counts = pd.read_csv(tmp_dir + "kmer_counts", header=None)
     kmer_counts = kmer_counts.to_numpy()
     kmer_counts = kmer_counts.reshape(total_contigs_source, 256) # convert 1D array to a 2D array with {total_contigs, all 4-mers} shape  
     kmer_counts = (kmer_counts / 2)
@@ -103,7 +108,7 @@ def binning(args):
 
     print("processing kmer frequencies")
 
-    GC_fractions = pd.read_csv(working_dir + "GC_fractionof_contigs", header=None)
+    GC_fractions = pd.read_csv(tmp_dir + "GC_fractionof_contigs", header=None)
     GC_fractions = GC_fractions.to_numpy()
     
     GC_tetramer = np.array([0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 2, 2, 1, 1, 2, 2, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1,
@@ -140,6 +145,7 @@ def binning(args):
     ss = time.time()
     dirichlet_prior_kmers, dirichlet_prior_perkmers = optimize_prior_fortrimers(kmer_counts, Rc_kmers, trimercountsper_nt)
     print('obtained alpha parameters for kmer counts in', time.time()-ss,'seconds')
+    print(dirichlet_prior_perkmers, dirichlet_prior_kmers)
     del(trimercountsper_nt)
 
     contig_length = contig_length[long_contigs]
@@ -153,28 +159,29 @@ def binning(args):
 
     # # """ end """
 
-    cluster_parameters = list([read_counts, Rc_reads, total_contigs, \
+    cluster_parameters = list([read_counts, Rc_reads, contig_length, total_contigs, \
                           dirichlet_prior, dirichlet_prior_persamples, kmer_counts, Rc_kmers, \
                           dirichlet_prior_kmers, dirichlet_prior_perkmers.flatten(), \
-                          d0, d1, min_shared_contigs, working_dir])   
+                          d0, d1, min_shared_contigs, tmp_dir])   
     # clusters, numclust_incomponents = cluster_by_connecting_centroids(cluster_parameters)
     # ccm.cluster_by_connecting_centroids(cluster_parameters)
-    clusters, numclust_incomponents = ccm.cluster_by_connecting_centroids(cluster_parameters)
+    # clusters, numclust_incomponents = ccm.cluster_by_connecting_centroids(cluster_parameters)
+    clusters, numclust_incomponents = dc.cluster_by_connecting_centroids(cluster_parameters)
     del(kmer_counts, cluster_parameters)
 
     # # bins_ = nmf_connected_components(read_counts, contig_length, clusters, numclust_incomponents, dirichlet_prior_persamples, dirichlet_prior)
-    bins_ = nmfm.nmf_connected_components(read_counts, contig_length, clusters, numclust_incomponents, dirichlet_prior_persamples, dirichlet_prior)
+    bins_ = nmf_connected_components(read_counts, contig_length, clusters, numclust_incomponents, dirichlet_prior_persamples, dirichlet_prior)
     print(len(np.unique(bins_[1])), "bins obtained in total")
     print(bins_[1])
 
-    np.savetxt(args.outdir + "/bin_assignments_bothsummed", np.stack((contig_names[bins_[0]], bins_[1])).T, fmt='%s\t%d')
-    np.savetxt(args.outdir + "/bin_assignments_bothsummed_inds", bins_, fmt='%d')
-    # # # subprocess.run(["/big/work/metadevol/scripts/get_sequence_bybin " + str(working_dir) + "  ../bin_assignments_newalgo" + " " +str(args.contigs) + " " + str(args.output) + " " + str(args.outdir)], shell=True)
-    # print('metagenome binning is completed in', time.time()-s,'seconds')
-
-
+    np.savetxt(tmp_dir + "/bin_assignments_density", np.stack((contig_names[bins_[0]], bins_[1])).T, fmt='%s\t%d')
+    np.savetxt(tmp_dir + "/bin_assignments_density_inds", bins_, fmt='%d')
+    # # # subprocess.run(["/big/work/metadevol/scripts/get_sequence_bybin " + str(tmp_dir) + "  ../bin_assignments_newalgo" + " " +str(args.contigs) + " " + str(args.output) + " " + str(args.outdir)], shell=True)
+    
     """ assign short contigs """
-    # assign_shortcontigs(working_dir, sel_inds, Rc_reads, contigs, bins_)
+    # assign_shortcontigs(tmp_dir, sel_inds, Rc_reads, contigs, bins_)
+   
+    print('metagenome binning is completed in', time.time()-s,'seconds')
 
     gc.collect()
     return 0

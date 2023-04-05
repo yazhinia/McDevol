@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import bin_assignments as assign
 import nmf_connected_components_modified as nmf
+
 def assign_shortcontigs(working_dir, sel_inds, Rc_reads, contigs, bins_):
     contig_names = contigs[:,1]
     contig_length = contigs[:,2].astype(int)
@@ -19,7 +20,7 @@ def assign_shortcontigs(working_dir, sel_inds, Rc_reads, contigs, bins_):
 
     Rc_reads_bins = Rc_reads[bins_[:,0]]
 
-    if np.min(Rc_reads_bins) == 0:
+    if np.min(Rc_reads_bins) != 0.0:
         
         bins_withRc = np.column_stack((bins_, Rc_reads_bins.T)).astype(int)
         bins_withRc = pd.DataFrame(bins_withRc)
@@ -34,18 +35,19 @@ def assign_shortcontigs(working_dir, sel_inds, Rc_reads, contigs, bins_):
         contig_names_n = np.delete(contig_names, sel_inds)
         contig_names = contig_names[sel_inds]
 
-        Z_parts = np.array_split(Z, 10, axis=1)
+        split_count = 3
+        Z_parts = np.array_split(Z, split_count, axis=1)
         read_counts_npart = np.array_split(read_counts_n, 10, axis=0)
         Z_optimized = []
         AIC_values = []
         
-        for f in range(10):
+        for f in range(split_count):
             Z_opt, AIC = nmf.multiplicative_updates(W_bins, Z_parts[f], read_counts_npart[f], 1000, 0)
             Z_optimized.append(Z_opt)
             AIC_values.append(AIC)
 
         Z_optimized = np.concatenate(Z_optimized, axis=1)
-        bin_assign, bin_m_assign = assign.assignment(Z_optimized, contig_length_n, 0)
+        bin_assign = assign.assignment(Z_optimized, contig_length_n, contig_names_n, 0)
         initial_bins = np.stack((contig_names[bins_[0]], bins_[1])).T
         short_addedbins = np.stack((contig_names_n[bin_assign[0]], bin_assign[1])).T
         total_bins = np.vstack([initial_bins, short_addedbins])

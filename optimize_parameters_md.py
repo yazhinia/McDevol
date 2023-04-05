@@ -7,17 +7,17 @@ from scipy import special
 from scipy.optimize import minimize, minimize_scalar
 import metadevol_distance as md
 
-# import simdefy
-# simdefy.init()
+import simdefy
+simdefy.init()
 
 # log_gamma = special.gammaln
 
 def log_gamma(x):
-    return md.log_gamma_avx2(x)
 #     return simdefy.log_gamma_avx2(x)
+    return md.log_gamma_avx2(x)
 
 def factorial(x):
-    return log_gamma(x + 1)
+    return md.log_gamma_avx2(x + 1)
 
 def train_alpha(a, *argv):
     Rc_factorial = factorial(argv[1])

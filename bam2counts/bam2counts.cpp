@@ -14,6 +14,7 @@
 #include <iterator>
 #include <unordered_map>
 #include <unordered_set>
+#include <stdexcept>
 
 struct al_data{
     std::string read;
@@ -80,7 +81,7 @@ std::pair<float, float> get_seqid_aligncov(BamTools::BamAlignment al,unsigned in
     }
 }
 
-void construct_umap(const BamTools::BamReader& reader, std::unordered_map<int, float>& umap, const int& minlength, bool flag, std::string& working_dir) {
+void construct_umap(const BamTools::BamReader& reader, std::unordered_map<int, float>& umap, const int& minlength, bool flag, std::string& tmp_dir) {
     BamTools::SamHeader header;
     header = reader.GetHeaderText();
     std::stringstream ss(header.ToString());
@@ -108,7 +109,7 @@ void construct_umap(const BamTools::BamReader& reader, std::unordered_map<int, f
                     if (!flag) {
                         umap.insert({ref_id, init_count});
                     } else {
-                        std::string selected_contigs= working_dir + "/selected_contigs";
+                        std::string selected_contigs= tmp_dir + "/selected_contigs";
                         std::fstream writetofile;
                         writetofile.open(selected_contigs, std::fstream::in | std::fstream::out | std::fstream::app);
                         if (!writetofile) {
@@ -131,9 +132,7 @@ void construct_umap(const BamTools::BamReader& reader, std::unordered_map<int, f
     }
 }
 
-std::string convertPyString(PyObject* pyString);
-
-void obtain_readcounts(std::string &bamfile, std::string &input_dir, std::string &working_dir, const int minlength) {
+void obtain_readcounts(std::string bamfile, std::string input_dir, std::string tmp_dir, const int minlength) {
 
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -142,7 +141,10 @@ void obtain_readcounts(std::string &bamfile, std::string &input_dir, std::string
     BamTools::BamReader reader;
     BamTools::BamAlignment aln;
     if (reader.Open(input_dir + "/" + bamfile)) {
-        std::cout << "processing bam file of " << bamfile << " to get fractional read counts for contigs\n";
+        std::stringstream text;
+        text << "processing bam file of " << bamfile << " to get fractional read counts for contigs\n";
+        std::cout << text.str();
+        std::cout.flush();
         unsigned int read_length = 0;
 
         while (reader.GetNextAlignment(aln)) {
@@ -153,7 +155,7 @@ void obtain_readcounts(std::string &bamfile, std::string &input_dir, std::string
             break;
         }
 
-        construct_umap(reader, umap, minlength, true, working_dir);
+        construct_umap(reader, umap, minlength, true, tmp_dir);
         reader.Rewind();
         
         std::vector<al_data> parsed_al;
@@ -161,15 +163,15 @@ void obtain_readcounts(std::string &bamfile, std::string &input_dir, std::string
         std::string out = bamfile.substr(0, lastindex); 
         std::tuple<std::string, std::string, int32_t> assign_qstring;
         std::unordered_map<int, float> umap;
-        construct_umap(reader, umap, minlength, false, working_dir);
+        construct_umap(reader, umap, minlength, false, tmp_dir);
 
         std::ofstream outfile;
-        outfile.open(working_dir + "/" + out +"_count");
+        outfile.open(tmp_dir + "/" + out +"_count");
         std::ofstream eachcount;
-        eachcount.open(working_dir + "/" + out +"_eachcount");
+        eachcount.open(tmp_dir + "/" + out +"_eachcount");
 
         std::ofstream pre_eachcount;
-        pre_eachcount.open(working_dir + "/" + out +"_preeachcount");
+        pre_eachcount.open(tmp_dir + "/" + out +"_preeachcount");
 
         while (reader.GetNextAlignment(aln)) {
     
@@ -280,12 +282,14 @@ void obtain_readcounts(std::string &bamfile, std::string &input_dir, std::string
         pre_eachcount.close();
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::seconds>(stop - start);
-        std::cout << "completed writing counts for sample " << out << " in " << duration.count() << " seconds\n";
+        std::stringstream text_out;
+        text_out << "completed writing counts for sample " << out << " in " << duration.count() << " seconds\n";
+        std::cout << text_out.str();
+        std::cout.flush();
     }
 
     else {
-        perror ("Input error! please check input");
-        exit(1);
+        throw std::invalid_argument("Input error! please check input");
     }
     umap.clear();
     reader.Close();
@@ -294,5 +298,5 @@ void obtain_readcounts(std::string &bamfile, std::string &input_dir, std::string
 namespace py = pybind11;
 
 PYBIND11_MODULE(bam2counts, m) {
-m.def("obtain_readcounts", &obtain_readcounts, "obtain fractional read counts from each metagenomic sample", py::arg("bamfile"), py::arg("input_dir"), py::arg("working_dir"), py::arg("minlength"));
+m.def("obtain_readcounts", &obtain_readcounts, "obtain fractional read counts from each metagenomic sample", py::arg("bamfile"), py::arg("input_dir"), py::arg("tmp_dir"), py::arg("minlength"));
 }

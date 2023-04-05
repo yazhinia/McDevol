@@ -9,16 +9,18 @@ from alive_progress import alive_bar
 def cluster_by_centroids(argv):
     read_counts = argv[0]
     Rc_reads = argv[1]
-    total_contigs = argv[2]
-    dirichlet_prior = argv[3]
-    dirichlet_prior_persamples = argv[4]
-    kmer_counts = argv[5]
-    Rc_kmers = argv[6]
-    dirichlet_prior_kmers = argv[7]
-    dirichlet_prior_perkmers = argv[8].flatten()
-    d0 = argv[9]
-    d1 = argv[10]
-    working_dir = argv[12]
+    contig_length = argv[2]
+    total_contigs = argv[3]
+    dirichlet_prior = argv[4]
+    dirichlet_prior_persamples = argv[5]
+    kmer_counts = argv[6]
+    Rc_kmers = argv[7]
+    dirichlet_prior_kmers = argv[8]
+    dirichlet_prior_perkmers = argv[9].flatten()
+    d0 = argv[10]
+    d1 = argv[11]
+    tmp_dir = argv[13]
+    print(tmp_dir, "tmp_dir")
     members = []
     cluster_curr = 0
     cluster_assigned = np.zeros(total_contigs, dtype=int) - 1
@@ -34,7 +36,7 @@ def cluster_by_centroids(argv):
     print("entering iterative distance_calculation", flush=True)
     clustercentroids_list = []
 
-    # dist_file =open(working_dir + 'mddistance_onlyreads','ab')
+    # dist_file =open(tmp_dir + 'mddistance_onlyreads','ab')
 
     with alive_bar(total_contigs, title='contigs processed', spinner=False, theme='classic') as bar:
     
@@ -51,7 +53,6 @@ def cluster_by_centroids(argv):
                 if len(inds) > 0 :
 
                     if distance[c] > d0:
-        #                 print(np.min(distance), np.argmin(distance), c, "contig index", distance[c], cluster_assigned[c])
                         inds = np.append(inds, c)
 
                     dist_to_assigned[inds] = distance[inds]
@@ -67,15 +68,13 @@ def cluster_by_centroids(argv):
         if len(np.nonzero(cluster_assigned==k)[0]) > 0:
             members.append(np.nonzero(cluster_assigned==k)[0])
 
-    for c in range(total_contigs):
-        if cluster_assigned[c] < 0:
-            cluster_assigned[c] = cluster_curr
-            members.append([c])
-            neighbors[c].append(cluster_curr)
-            cluster_curr += 1
+    for c in np.nonzero(cluster_assigned < 0)[0]:
+        cluster_assigned[c] = cluster_curr
+        members.append([c])
+        neighbors[c].append(cluster_curr)
+        cluster_curr += 1
 
-    np.savetxt(working_dir + "/cluster_assigned_bothsummed", cluster_assigned, fmt='%d')
-    # np.save(working_dir + 'clustercentroids_80splist', np.array(clustercentroids_list))
+    np.savetxt(tmp_dir + "/cluster_assigned_bothsummed_again", cluster_assigned, fmt='%d')
 
     for k in members:
         if len(k) == 0:
@@ -89,7 +88,7 @@ def cluster_by_centroids(argv):
 
 
 
-    # with open(working_dir + "/try/length_2500/cluster_assigned_checkcc", 'w+') as file:
+    # with open(tmp_dir + "/try/length_2500/cluster_assigned_checkcc", 'w+') as file:
     #     for f in range(len(members)):
     #         for q in members[f]:
     #             file.write(str(q) + " " + str(f) + "\n")    
@@ -98,17 +97,17 @@ def cluster_by_centroids(argv):
 
     print("Obtained {} clusters from initial clustering".format(len(members)))
     print("Initial clustering took:", time.time() - s,"seconds")
-    # np.save(working_dir + 'try/length_2500/cluster_centroids_both', cluster_centroids_read)
+    # np.save(tmp_dir + 'try/length_2500/cluster_centroids_both', cluster_centroids_read)
     gc.collect()
     return members, cluster_centroids_read, cluster_centroids_kmer
 
 
 def components_by_merging_clusters(cluster_parameters, members, cluster_centroids_read, cluster_centroids_kmer):
-    dirichlet_prior = cluster_parameters[3]
-    dirichlet_prior_persamples = cluster_parameters[4]
-    dirichlet_prior_kmers = cluster_parameters[7]
-    dirichlet_prior_perkmers = cluster_parameters[8].flatten()
-    d0 = cluster_parameters[9]
+    dirichlet_prior = cluster_parameters[4]
+    dirichlet_prior_persamples = cluster_parameters[5]
+    dirichlet_prior_kmers = cluster_parameters[8]
+    dirichlet_prior_perkmers = cluster_parameters[9].flatten()
+    d0 = cluster_parameters[10]
     Rc_reads = np.sum(cluster_centroids_read,axis=1)
     Rc_kmers = cluster_centroids_kmer.reshape(-1,64,4).sum(axis=2)
     # print(np.shape(Rc_reads), Rc_reads[0] , Rc_reads)
@@ -160,7 +159,7 @@ def components_by_merging_clusters(cluster_parameters, members, cluster_centroid
 def find_connected_components(links):
     s = time.time()
     K = len(links)
-    components = np.zeros(K).astype(int) - 1
+    components = np.zeros(K, dtype=int) - 1
     component_curr = 0
     
     for k in np.arange(K):
@@ -208,13 +207,16 @@ def cluster_by_connecting_centroids(cluster_parameters):
     print("computing cluster_by_connecting_centroids", flush=True)
     s = time.time()
     argv = cluster_parameters
-    working_dir = argv[12]
+    tmp_dir = argv[13]
     members, cluster_centroids_read, cluster_centroids_kmer = cluster_by_centroids(cluster_parameters)
+    ss = time.time()
     links = components_by_merging_clusters(cluster_parameters, members, cluster_centroids_read, cluster_centroids_kmer)
+    print("connected_component using summed count took", time.time()-ss, "seconds")
     components, num_components, numclust_incomponents = find_connected_components(links)
-    np.savetxt(working_dir + "/components_cc_ccq8q8_bothsummed", np.dstack((np.arange(len(components)), components))[0], fmt='%d')
-    np.savetxt(working_dir + "/numclust_incomponents_cc_ccq8q8_bothsummed", numclust_incomponents, fmt='%d')
+    np.savetxt(tmp_dir + "/components_cc_ccq8q8_bothsummed_again", np.dstack((np.arange(len(components)), components))[0], fmt='%d')
+    np.savetxt(tmp_dir + "/numclust_incomponents_cc_ccq8q8_bothsummed_again", numclust_incomponents, fmt='%d')
     clusters = merge_members_by_connnected_components(components, num_components, members)
     print("number of connected components", num_components)
     print("count_by_connecting_centroids took ", time.time() - s, "seconds")
+    
     return clusters, numclust_incomponents

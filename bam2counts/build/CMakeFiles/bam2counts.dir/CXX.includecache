@@ -39,6 +39,8 @@ unordered_map
 -
 unordered_set
 -
+stdexcept
+-
 
 /big/work/metadevol/scripts/bam2counts/pybind11/include/pybind11/attr.h
 detail/common.h
