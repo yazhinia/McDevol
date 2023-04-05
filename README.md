@@ -8,6 +8,11 @@ Shown below an illustration for the underlying basis for binning.
 
 ![binning_twosource_of_information](https://user-images.githubusercontent.com/29796007/227135720-bee8b197-3b8a-4020-9582-4c917a2b9b0a.png)
 
+# Algorithm
+McDevol clusters metagenome contigs using novel Bayesian statistics-based distance between read counts and k-mer profiles. The clusters are merged further by distances with relaxed threshold to combine clusters into connected components. Non-Megative Matrix Factorization is performed on components to bin contigs by learning linear mixture models. The outline of algorithm is show below.
+
+![MetaDevol_algorithm_workflow](https://user-images.githubusercontent.com/29796007/230059880-d9d4f062-5793-4ff2-963d-7e9193314266.png)
+
 # Command line
 `python3 main.py -i bamfiles -c contig.fasta`
 
