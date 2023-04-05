@@ -22,7 +22,7 @@ McDevol uses novel Bayesian statistics-based distance measure between contigs to
 
 `-c | --contigs` fasta file of contig sequenes assembled from all samples (sample-wise assembly)
 
-## additional options
+## Additional options
 
 `-l | --minlength` minimum length of contigs to be considered for binning [default 1000kb]
 
@@ -30,10 +30,13 @@ McDevol uses novel Bayesian statistics-based distance measure between contigs to
 
 `-d | --outdir` output directory [default, working directory]
 
+`--fasta` output fasta file for each bin
 
-## help
+
+## Help
 `python3 main.py -h or python3 main.py`
 
 
-## requirement
+## Requirements
 MetaDevol uses bamtools API for alignment file processing. Users are requested to install it separately (refer https://github.com/pezmaster31/bamtools/wiki).
+cmake>=3.0
