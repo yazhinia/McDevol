@@ -1,6 +1,6 @@
-# MetaDevol
+# McDevol
 
-MetaDevol - Metagenome binning based on Deconvolution of abundance and k-mer profiles. 
+McDevol - _M_etagenome binning of _c_ontigs based on _De_con_vol_ution of abundance and k-mer profiles. 
 
 Shown below an illustration for the underlying basis for binning.
 (1) Contigs originated from same genome will have correlated abundance profiles across samples;
