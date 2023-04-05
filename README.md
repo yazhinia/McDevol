@@ -39,4 +39,5 @@ McDevol uses novel Bayesian statistics-based distance measure between contigs to
 
 ## Requirements
 MetaDevol uses bamtools API for alignment file processing. Users are requested to install it separately (refer https://github.com/pezmaster31/bamtools/wiki).
+
 cmake>=3.0
