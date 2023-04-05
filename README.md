@@ -8,7 +8,7 @@ Metagenome binning relies on the following underlying basis,
 (2) k-mer (tetramer) frequency is a characteristics of microbial genomes and distinguishes genomes from different genus. Thus, contigs from same genome show correlation in k-mer frequency
 
 ![binning_twosource_of_information](https://user-images.githubusercontent.com/29796007/227135720-bee8b197-3b8a-4020-9582-4c917a2b9b0a.png)
-Using this basis, contigs from the same genomes could be identified in the metagenome assembly and grouped into <ins>*M*<\ins>etagenome-<ins>*a*<\ins>ssembled <ins>*g*<\ins>enomes (MAGs).
+Using this basis, contigs from the same genomes could be identified in the metagenome assembly and grouped into <ins>*M*<\ins>etagenome - <ins>*a*<\ins>ssembled <ins>*g*<\ins>enomes (MAGs).
 
 # Algorithm
 McDevol clusters metagenome contigs using novel Bayesian statistics-based distance measure between contigs by their read counts and k-mer profiles. The initial clusters are merged further by distances with relaxed threshold to combine clusters into connected components. Non-Megative Matrix Factorization is performed on components to bin contigs by learning linear mixture models. The outline of algorithm is show below.
