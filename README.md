@@ -1,6 +1,6 @@
 # McDevol
 
-McDevol - <u>*M*<\u>etagenome binning of <u>*c*<\u>ontigs based on <u>*De*<\u>con<u>*vol*<\u>ution of abundance and k-mer profiles. 
+McDevol - <u>*M*</u>etagenome binning of <u>*c*</u>ontigs based on <u>*De*</u>con<u>*vol*</u>ution of abundance and k-mer profiles. 
 
 Shown below an illustration for the underlying basis for binning.
 (1) Contigs originated from same genome will have correlated abundance profiles across samples;
