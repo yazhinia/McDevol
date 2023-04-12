@@ -15,6 +15,16 @@ McDevol uses novel Bayesian statistics-based distance measure between contigs to
 
 ![MetaDevol_algorithm_workflow](https://user-images.githubusercontent.com/29796007/230059880-d9d4f062-5793-4ff2-963d-7e9193314266.png)
 
+# Installation
+      git clone https://github.com/yazhinia/McDevol.git
+      cd McDevol
+      Create conda environment with python 3.8
+      conda create -n mcdevol_env python3.8
+      conda activate mcdevol_env
+      bash set_up.sh
+      
+Now ready to use.
+
 # Command line
 `python3 main.py -i bamfiles -c contig.fasta`
 
