@@ -55,7 +55,7 @@ MetaDevol uses bamtools API for processing alignment bam files. When you run `ba
       target_include_directories(bam2counts PRIVATE "${PATH}/bamtools/include/bamtools/")
       target_include_directories(bam2counts PRIVATE "${PATH}/bamtools/src/")
       
-update `${PATH}` to the absolute parent path of bamtools where it is installed. Then in bam2counts folder, run `bash build.sh && cd ../ && bash set_up.sh` to install MecDevol. 
+update `${PATH}` to the absolute parent path of bamtools where it is installed. Then in bam2counts folder, run `bash build.sh && cd ../ && bash set_up.sh` to install McDevol. 
 
 
 
