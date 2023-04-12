@@ -21,7 +21,7 @@ McDevol uses novel Bayesian statistics-based distance measure between contigs to
       conda create -n mcdevol_env python=3.8
       conda activate mcdevol_env
       bash ./set_up.sh
-      
+      export PATH=$PATH:<path to McDevol>      
 Now ready to use.
 
 # Command line
