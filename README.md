@@ -25,7 +25,7 @@ McDevol uses novel Bayesian statistics-based distance measure between contigs to
 Now ready to use.
 
 # Command line
-`python3 main.py -i bamfiles -c contig.fasta`
+`python3 mcdevol.py -i bamfiles -c contig.fasta`
 
 `-i | --input` directory in which all bamfiles present
 
@@ -43,7 +43,7 @@ Now ready to use.
 
 
 ## Help
-`python3 main.py -h or python3 main.py`
+`python3 mcdevol.py -h or python3 mcdevol.py`
 
 
 ## Custome installation with bamtools pre-installed
