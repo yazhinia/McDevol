@@ -18,8 +18,7 @@ McDevol uses novel Bayesian statistics-based distance measure between contigs to
 # Installation
       git clone https://github.com/yazhinia/McDevol.git
       cd McDevol
-      Create conda environment with python 3.8
-      conda create -n mcdevol_env python3.8
+      conda create -n mcdevol_env python=3.8
       conda activate mcdevol_env
       bash ./set_up.sh
       
