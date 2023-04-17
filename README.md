@@ -30,7 +30,9 @@ Now ready to use.
 `-i | --input` directory in which all bamfiles present
 
 `-c | --contigs` fasta file of contig sequenes assembled from all samples (sample-wise assembly)
+
 note: bamfiles should be unsorted (i.e., alignments are arranged by read names as provided by aligners by default)
+
 ## Additional options
 
 `-l | --minlength` minimum length of contigs to be considered for binning [default 1000kb]
