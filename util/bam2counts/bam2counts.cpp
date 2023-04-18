@@ -172,6 +172,8 @@ void obtain_readcounts(std::string bamfile, const int flag, std::string input_di
         outfile.open(tmp_dir + "/" + out +"_count");
         std::ofstream eachcount;
         eachcount.open(tmp_dir + "/" + out +"_eachcount");
+        std::ofstream eachcount_pre;
+        eachcount.open(tmp_dir + "/" + out +"_eachcount_pre");
 
         while (reader.GetNextAlignment(aln)) {
     
@@ -193,7 +195,8 @@ void obtain_readcounts(std::string bamfile, const int flag, std::string input_di
                 std::pair<float, float> alignment_stat;
                 alignment_stat = get_seqid_aligncov(aln, read_length);
                 
-                if (alignment_stat.first >= sequenceidentity && alignment_stat.second >= 70.0f) { // filter the alignment by sequence identity (97%) and read coverage (70%)
+                if (alignment_stat.second >= 70.0f) { // filter the alignment by sequence identity (97%) and read coverage (70%)
+                    
                     unsigned int pair_flag = 0;
 
                     if (aln.IsFirstMate()) { // set flag for direction of the read pair
@@ -234,29 +237,34 @@ void obtain_readcounts(std::string bamfile, const int flag, std::string input_di
                         }
 
                         else { // new read alignment
+
                             auto it = std::max_element(parsed_al.begin(), parsed_al.end(),[](const al_data& a,const al_data& b) { return a.sequence_identity < b.sequence_identity;});
                             
-                            parsed_al.erase(std::remove_if(parsed_al.begin(),parsed_al.end(), [&](const al_data& a) {return it->sequence_identity > a.sequence_identity;}), parsed_al.end());
-                            for (size_t j = 0; j < parsed_al.size(); j++) {
-                                eachcount << parsed_al[j].read << " " << parsed_al[j].contig << " " << parsed_al[j].pair_dir << " " << parsed_al[j].paired << " " << parsed_al.size() << " " << parsed_al[j].sequence_identity << "\n";
-                            }
-                           
-                            unsigned int paired_count = std::count_if(parsed_al.begin(), parsed_al.end(),[](const al_data& a) { return a.paired == 1;});
-                            unsigned int non_paired_count = parsed_al.size() - paired_count;
+                            if (it->sequence_identity >= sequenceidentity) {
+                                parsed_al.erase(std::remove_if(parsed_al.begin(),parsed_al.end(), [&](const al_data& a) {return it->sequence_identity > a.sequence_identity;}), parsed_al.end());
 
-                            float val1 = 1.0f / parsed_al.size() ;
-                            float val2 = val1 / 2.0f;
-                            float val3 = val2 * non_paired_count;
-                            float val4 = val3 / paired_count;
-                            for (size_t r = 0; r < parsed_al.size(); r++) {
-                                auto it = umap.find(parsed_al[r].contig);
-                                if (parsed_al[r].paired) {
-                                    it->second = it->second + val1 + val4 ;
+                                if (parsed_al.size() > 0) {
+                                    for (size_t j = 0; j < parsed_al.size(); j++) {
+                                        eachcount << sequenceidentity << " " << parsed_al[j].read << " " << parsed_al[j].contig << " " << parsed_al[j].pair_dir << " " << parsed_al[j].paired << " " << parsed_al.size() << " " << parsed_al[j].sequence_identity << "\n";
+                                    }
+                                    unsigned int paired_count = std::count_if(parsed_al.begin(), parsed_al.end(),[](const al_data& a) { return a.paired == 1;});
+                                    unsigned int non_paired_count = parsed_al.size() - paired_count;
+
+                                    float val1 = 1.0f / parsed_al.size() ;
+                                    float val2 = val1 / 2.0f;
+                                    float val3 = val2 * non_paired_count;
+                                    float val4 = val3 / paired_count;
+                                    for (size_t r = 0; r < parsed_al.size(); r++) {
+                                        auto it = umap.find(parsed_al[r].contig);
+                                        if (parsed_al[r].paired) {
+                                            it->second = it->second + val1 + val4 ;
+                                        }
+                                        else {
+                                            it->second = it->second + val2;
+                                        }
+                                        
+                                    }
                                 }
-                                else {
-                                    it->second = it->second + val2;
-                                }
-                                
                             }
                             parsed_al.clear();
                             parsed_al.push_back({aln.Name, aln.RefID, pair_flag, aln.IsProperPair(), alignment_stat.first});
@@ -275,6 +283,7 @@ void obtain_readcounts(std::string bamfile, const int flag, std::string input_di
         }
         outfile.close();
         eachcount.close();
+        eachcount_pre.close();
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::seconds>(stop - start);
         std::stringstream text_out;
