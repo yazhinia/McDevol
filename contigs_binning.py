@@ -42,7 +42,7 @@ def binning(args):
     global input_dir, tmp_dir, minlength, ncpu, sequence_identity
 
     input_dir = args.input
-    tmp_dir = args.input + '/sequence_identity_97/'
+    tmp_dir = args.input + '/sequence_identity_98p5/'
     minlength = args.minlength
     ncpu = args.ncores
     sequence_identity = args.seq_identity
@@ -50,19 +50,19 @@ def binning(args):
     print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
     """ obtain read counts """
-    # bamfiles = [f for f in os.listdir(input_dir) if f.endswith('.bam')]
-    # flags = np.zeros(len(bamfiles), dtype=int)
-    # flags[0] = 1
-    # bamfiles = list(map(list,zip(bamfiles,flags)))
+    bamfiles = [f for f in os.listdir(input_dir) if f.endswith('.bam')]
+    flags = np.zeros(len(bamfiles), dtype=int)
+    flags[0] = 1
+    bamfiles = list(map(list,zip(bamfiles,flags)))
     
-    # if os.path.isfile(tmp_dir + "selected_contigs"):
-    #     subprocess.run(["rm " + tmp_dir + "selected_contigs"], shell=True)
+    if os.path.isfile(tmp_dir + "selected_contigs"):
+        subprocess.run(["rm " + tmp_dir + "selected_contigs"], shell=True)
 
-    # if any(File.endswith("_count") for File in os.listdir(tmp_dir)):    
-    #     subprocess.run(["rm " + tmp_dir + "*_count"], shell=True)
+    if any(File.endswith("_count") for File in os.listdir(tmp_dir)):    
+        subprocess.run(["rm " + tmp_dir + "*_count"], shell=True)
     
-    # calcreadcounts(bamfiles)
-    # subprocess.run(["cat " + tmp_dir + "*_count > " + tmp_dir + "total_readcount"], shell=True)
+    calcreadcounts(bamfiles)
+    subprocess.run(["cat " + tmp_dir + "*_count > " + tmp_dir + "total_readcount"], shell=True)
     
     
 
