@@ -2,8 +2,6 @@ import numpy as np
 import distance_calculations as dist
 import bin_assignments as assign
 from multiprocessing.pool import Pool
-from os import getpid
-import logging
 
 def np_relu(x):
     
@@ -42,11 +40,14 @@ def calc_aic(w, z, x):
 
 """ Multiplicative Updates """
 
-def multiplicative_updates(W, Z, X, n, method):
+def multiplicative_updates(W, Z, X, n, method, flag=0):
     
     lw = 0.0
     lz = 0.8
     beta = 0.5
+    if flag:
+        lz = 20
+
     convergence_criteria = np.exp(-15)
     epsilon_reg = 1e-05
     loss_values = []
@@ -135,8 +136,8 @@ def obtain_best_noofbins(argv):
     dat_s = argv[0]
     epsilon = argv[1]
     Rc_s = argv[2]
-    an = argv[3]
-    alpha = argv[4]
+    alpha = argv[3]
+    an = argv[4]
     num_iterations = argv[5]
     AIC_score = argv[6]
     optimized = argv[7]
@@ -193,8 +194,12 @@ def obtain_best_noofbins(argv):
     return _AIC, optimized
 
 
-def nmf_connected_components(read_counts, contig_length, clusters, numclust_incomponents, an, alpha, mode = 0):
+def nmf_connected_components(read_counts, contig_length, clusters, numclust_incomponents, alpha, an, mode = 0):
     
+    """ learn learning mixture models from count profiles """
+
+    print("intitiating nmf modeling of connected components")
+
     num_iterations = 5000
     epsilon = 1e-10
     bin_index = 1
@@ -264,51 +269,54 @@ def nmf_connected_components(read_counts, contig_length, clusters, numclust_inco
         #         bin_assigned.append(np.vstack((clusters[k], np.array([bin_index] * len(clusters[k])))))
         #         bin_index += 1
 
-        dat_s = read_counts[clusters[k],:]
-        Rc_s = dat_s.sum(axis = 1)
+        if sum(contig_length[clusters[k]]) >= 200000:
 
-        AIC_score = []
+            dat_s = read_counts[clusters[k],:]
+            Rc_s = dat_s.sum(axis = 1)
 
-        optimized = {}
+            AIC_score = []
 
-        LL_values = {}
+            optimized = {}
 
-        _params = [(dat_s, epsilon, Rc_s, an, alpha, num_iterations, \
-                    AIC_score, optimized, LL_values, trial_bval) \
-                    for trial_bval in range(numclust_incomponents[k])]
+            LL_values = {}
 
-        with Pool() as pool:
-            results = pool.map(obtain_best_noofbins, _params)
-        # print(k, numclust_incomponents[k], len(np.array([x[0] for x in results])), np.array([x[0] for x in results]))
-        bval = np.argmax(np.array([x[0] for x in results]))
-        Z_opt = [x[1]['Z'+str(bval)] for x in results if 'Z'+str(bval) in x[1]][0]
+            _params = [(dat_s, epsilon, Rc_s, alpha, an, num_iterations, \
+                        AIC_score, optimized, LL_values, trial_bval) \
+                        for trial_bval in range(numclust_incomponents[k]+5)]
 
-        # np.save('/big/work/metadevol/cami2_datasets/marine/pooled_assembly/all_alignment/tmp/Z_opt_check/'+str(k)+'_Zopt', Z_opt)
+            with Pool() as pool:
+                results = pool.map(obtain_best_noofbins, _params)
+            
+            bval = np.argmax(np.array([x[0] for x in results]))
+            Z_opt = [x[1]['Z'+str(bval)] for x in results if 'Z'+str(bval) in x[1]][0]
 
-        # b_value_record.append(list([k,bval]))
+            # print(k, numclust_incomponents[k], bval)
+
+            # np.save('/big/work/metadevol/cami2_datasets/marine/pooled_assembly/all_alignment/tmp/Z_opt_check/'+str(k)+'_Zopt', Z_opt)
+
+            # b_value_record.append(list([k,bval]))
 
 
-        if bval == 0:
+            if bval == 0:
 
-            bin_assigned.append(np.vstack((clusters[k], np.array([bin_index] * len(clusters[k])))))
+                bin_assigned.append(np.vstack((clusters[k], np.array([bin_index] * len(clusters[k])), np.array([1.0] * len(clusters[k])))))
 
-            bin_index += 1
+                bin_index += 1
 
-        else:
-
-            # print(k, bval, numclust_incomponents[k], bin_index)
-
-            bin_indices, bin_mindices = assign.assignment(Z_opt, contig_length[clusters[k]], 1)
-            bin_indices += bin_index
-
-            bin_mindices_ = bin_mindices[0] + bin_index
-
-            if mode == 1:
-                bin_assigned.append(np.vstack((clusters[k][bin_mindices[1]], bin_mindices_)))
             else:
-                bin_assigned.append(np.vstack((clusters[k], bin_indices)))
 
-            bin_index += len(set(bin_indices))
+                # print(k, bval, numclust_incomponents[k], bin_index)
+                bin_indices, bin_pi, bin_mindices = assign.assignment(Z_opt, contig_length[clusters[k]], 1)
+                bin_indices += bin_index
+
+                bin_mindices_ = bin_mindices[0] + bin_index
+
+                if mode == 1:
+                    bin_assigned.append(np.vstack((clusters[k][bin_mindices[1]], bin_mindices_)))
+                else:
+                    bin_assigned.append(np.vstack((clusters[k], bin_indices, bin_pi)))
+
+                bin_index += len(set(bin_indices))
 
 
     bin_assigned = np.concatenate(bin_assigned, axis=1)

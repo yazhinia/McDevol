@@ -1,1 +1,0 @@
-/usr/bin/c++ -fPIC  -flto -shared  -o ../bam2counts.cpython-38-x86_64-linux-gnu.so CMakeFiles/bam2counts.dir/bam2counts.cpp.o -Wl,-rpath,/big/software/bamtools/build/src /big/software/bamtools/build/src/libbamtools.so -lz 

@@ -38,7 +38,7 @@ def cluster_by_centroids(argv):
         for c in iterate_ind:
         
             if cluster_assigned[c] < 0 :
-                distance = calc_distance.compute_dist(c, read_counts, kmer_counts, Rc_reads, Rc_kmers, dirichlet_prior, dirichlet_prior_persamples, dirichlet_prior_kmers, dirichlet_prior_perkmers)
+                distance = calc_distance.compute_dist(c, read_counts, kmer_counts, Rc_reads, Rc_kmers, dirichlet_prior, dirichlet_prior_persamples, dirichlet_prior_kmers, dirichlet_prior_perkmers, np.exp(-8.0), np.exp(-8.0))
                 clustercentroids_list.append(c)
 
                 inds = np.nonzero(distance < dist_to_assigned)[0] # " there could be empty list "
@@ -67,9 +67,7 @@ def cluster_by_centroids(argv):
         neighbors[c].append(cluster_curr)
         cluster_curr += 1
 
-    np.savetxt(tmp_dir + "/cluster_assigned_bothsummed_again", cluster_assigned, fmt='%d')
-
-    print(len(members), cluster_curr)
+    np.savetxt(tmp_dir + "/cluster_assigned", cluster_assigned, fmt='%d')
 
     cluster_length = []
 
@@ -84,8 +82,6 @@ def cluster_by_centroids(argv):
     
     cluster_centroids_read = np.array(cluster_centroids_read)
     cluster_centroids_kmer = np.array(cluster_centroids_kmer)
-
-    print(cluster_curr, len(members))
 
     print("Obtained {} clusters from initial clustering".format(len(members)))
     print("Initial clustering took:", time.time() - s,"seconds")
@@ -109,10 +105,8 @@ def density_based_clustering(cluster_parameters, cluster_centroids_read, cluster
     nearest = np.zeros(K, dtype=int)
     separation_dist = np.zeros(K) + 1e30
     
-    print(dirichlet_prior, "dirichlet_prior in density_based clustering")
-
     for k in range(K):
-        distance = calc_distance.compute_dist(k, cluster_centroids_read, cluster_centroids_kmer, Rc_reads, Rc_kmers, dirichlet_prior, dirichlet_prior_persamples, dirichlet_prior_kmers, dirichlet_prior_perkmers)
+        distance = calc_distance.compute_dist(k, cluster_centroids_read, cluster_centroids_kmer, Rc_reads, Rc_kmers, dirichlet_prior, dirichlet_prior_persamples, dirichlet_prior_kmers, dirichlet_prior_perkmers, np.exp(-8.0), np.exp(-8.0))
         inds = np.nonzero(distance < d1)[0]
         
         if distance[k] > d1:
@@ -146,7 +140,7 @@ def density_based_clustering(cluster_parameters, cluster_centroids_read, cluster
 def obtain_clusters(density, separation_dist, nearest):
 
     denssep_threshold = 1000
-    sep_min = 1.0
+    sep_min = 2.0
 
     if density.size != separation_dist.size:
         raise RuntimeError(f'density size and separation distance size doesn\'t match')
@@ -158,12 +152,10 @@ def obtain_clusters(density, separation_dist, nearest):
     nearest_prev = np.zeros(nearest.size, dtype=int) - 1
 
     while (nearest != nearest_prev).any():
-        print('yes')
         nearest_prev = nearest
         nearest = nearest[nearest[nearest[nearest[:]]]]
 
     components = []
-    print(len(set(nearest)), "set value", cluster_curr, len(cluster_centers))
 
     for k in range(cluster_curr):
 
@@ -171,15 +163,12 @@ def obtain_clusters(density, separation_dist, nearest):
             components.append(np.nonzero(nearest == cluster_centers[k])[0])
 
         else:
-            print(k, cluster_centers[k], nearest[k], flush=True)
             raise RuntimeWarning("no clusters in cluster_centers[k] is assigned to nearest[k] ")
     print(len(components),len(np.concatenate(components).ravel()), " elements in components")
     return components
 
 def merge_members_by_connnected_components(components, members):
     K = len(components)
-    print(len(np.concatenate(members).ravel()), flush=True)
-    print(K, len(members), flush=True)
     clusters = [[] for i in range(K)]
     numclust_incomponents = []
     for k in np.arange(K):
@@ -193,14 +182,12 @@ def merge_members_by_connnected_components(components, members):
 def cluster_by_connecting_centroids(cluster_parameters):
     print("computing cluster_by_connecting_centroids", flush=True)
     s = time.time()
-    argv = cluster_parameters
-    tmp_dir = argv[13]
     members, cluster_centroids_read, cluster_centroids_kmer, cluster_length = cluster_by_centroids(cluster_parameters)
     ss = time.time()
     density, separation_dist, nearest = density_based_clustering(cluster_parameters, cluster_centroids_read, cluster_centroids_kmer, cluster_length)
     print("density based clustering took", time.time() - ss, "seconds")
     components = obtain_clusters(density, separation_dist, nearest)
-    print(len(separation_dist), len(nearest), len(density))
+    print(len(separation_dist), len(nearest), len(density), "separation dist, nearest, density")
     clusters, numclust_incomponents = merge_members_by_connnected_components(components, members)
-    print("count_by_connecting_centroids took ", time.time() - s, "seconds")
+    print("count_by_connecting_centroids took", time.time() - s, "seconds")
     return clusters, numclust_incomponents

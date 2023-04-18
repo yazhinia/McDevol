@@ -3,18 +3,13 @@
 __doc__ = "optimize alpha value using maximum likelihood estimation"
 
 import numpy as np
-from scipy import special
 from scipy.optimize import minimize, minimize_scalar
 import metadevol_distance as md
-
-# import simdefy
-# simdefy.init()
+from scipy import special
 
 # log_gamma = special.gammaln
-
 def log_gamma(x):
     return md.log_gamma_avx2(x)
-#     return simdefy.log_gamma_avx2(x)
 
 def factorial(x):
     return log_gamma(x + 1)
