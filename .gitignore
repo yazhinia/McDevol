@@ -3,3 +3,7 @@
 __pycache__
 *.ipynb
 *.so
+util/get_sequence_bybin
+util/kmerfreq
+build
+*.bak
