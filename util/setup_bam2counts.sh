@@ -13,6 +13,8 @@ cd build
 cmake -DCMAKE_INSTALL_PREFIX=../ ..
 make && make install
 
+cd ../ && rm -rf build && mkdir build && cd build
+
 cmake -DCMAKE_INSTALL_PREFIX=../ .. -DBUILD_SHARED_LIBS=ON
 make && make install
 cd ../../
