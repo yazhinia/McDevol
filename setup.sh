@@ -15,9 +15,15 @@ fi
 
 # compile and build cpp pybind11 module for distance calculation
 cd metadevol_distance
+so_file=(`find -name "metadevol_distance*.so"`)
+if [ ! ${#so_file[@]} -gt 0 ]; then
+if [ -d "build" ]; then
+rm -rf build
+fi
+fi
 mkdir build && cd build
 cmake -DCMAKE_BUILD_TYPE=Release ..
-make && cp metadevol_distance.cpython* ../ && cd ../
+make && cd../ && cp metadevol_distance.cpython* ../ && cd ../
 # end
 
 cd ../
