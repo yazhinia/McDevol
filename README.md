@@ -16,7 +16,7 @@ McDevol uses novel Bayesian statistics-based distance measure between contigs to
 ![MetaDevol_algorithm_workflow](https://user-images.githubusercontent.com/29796007/230059880-d9d4f062-5793-4ff2-963d-7e9193314266.png)
 
 ## Installation
-      git clone https://github.com/yazhinia/McDevol.git
+      git clone https://github.com/yazhinia/McDevol.git --recurse-submodules
       cd McDevol
       git submodule init
       git submodule update --init --recursive
