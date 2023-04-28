@@ -34,11 +34,11 @@ The advantages of McDevol are that
 
 (iii) it does not relying single-copy marker genes to refine clusters as done by other existing binners and resulting in over-estimation completeness and purity measures using CheckM.
 
-McDevol takes roughly 2min to complete metagenome binning of CAMI2 marine dataset while MetaBAT2, the fastest and memory-efficient binner exists, takes ~1hr. Memory usage of McDevol is ~400Mb while MetaBAT2 requires 1.5Gb. Together, McDevol is the fastest and memory-efficient binning tool and suitable for large-scale metagenome binning. More details on McDevol performance will be given in the near future...
+McDevol takes roughly 2min to complete metagenome binning of CAMI2 marine dataset while MetaBAT2, the fastest and memory-efficient binner exists, takes ~1hr. Memory usage of McDevol is ~400Mb while MetaBAT2 requires 1.5Gb. Together, McDevol is the fastest and memory-efficient binning tool and would be suitable choice for large-scale metagenome binning. More details on McDevol performance will be given in the near future...
 
 
 ## Command line
-`python3 mcdevol.py -i bamfiles -c contig.fasta`
+`mcdevol.py -i bamfiles -c contig.fasta`
 
 `-i | --input` directory in which all bamfiles present
 
