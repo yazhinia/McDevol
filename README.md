@@ -1,6 +1,7 @@
 ## McDevol
 A fast and memory-efficient metagenome binning tool
-#McDevol - <ins>*M*</ins>etagenome binning of <ins>*c*</ins>ontigs based on <ins>*De*</ins>con<ins>*vol*</ins>ution of abundance and k-mer profiles. 
+
+[//]: <> McDevol - <ins>*M*</ins>etagenome binning of <ins>*c*</ins>ontigs based on <ins>*De*</ins>con<ins>*vol*</ins>ution of abundance and k-mer profiles. 
 
 ## Introduction
 Metagenome binning relies on the following underlying basis (i) Contigs originated from same genome will have correlated abundance profiles across samples and (ii) k-mer (tetramer) frequency is a characteristics of microbial genomes and distinguishes genomes from different genus. Thus, contigs from same genome show correlation in k-mer frequency
