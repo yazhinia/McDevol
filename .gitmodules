@@ -1,7 +1,7 @@
-[submodule "util/metadevol_distance/simd_T"]
+[submodule "util/baysian_distance/simd_T"]
 	path = util/baysian_distance/simd_T
 	url = https://github.com/Unlikus/simd_T
-[submodule "util/metadevol_distance/pybind11"]
+[submodule "util/baysian_distance/pybind11"]
 	path = util/baysian_distance/pybind11
 	url = https://github.com/pybind/pybind11
 [submodule "util/bam2counts/pybind11"]
