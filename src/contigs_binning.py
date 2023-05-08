@@ -4,15 +4,14 @@ import os, sys
 parent_path = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, parent_path)
 
-
 import time
 import subprocess
 import gc
 import numpy as np
 import pandas as pd
-import optimize_parameters as opt
+import src.optimize_parameters as opt
 from multiprocessing.pool import Pool
-import density_based_clustering as dc
+from src.density_based_clustering import cluster_by_connecting_centroids
 import util.bam2counts as bc
 from datetime import datetime
 
@@ -57,22 +56,21 @@ def binning(args):
     flags[0] = 1
     bamfiles = list(map(list,zip(bamfiles,flags)))
     
-    if os.path.isfile(tmp_dir + "selected_contigs"):
-        subprocess.run(["rm " + tmp_dir + "selected_contigs"], shell=True)
+    # if os.path.isfile(tmp_dir + "selected_contigs"):
+    #     subprocess.run(["rm " + tmp_dir + "selected_contigs"], shell=True)
 
-    if any(File.endswith("_count") for File in os.listdir(tmp_dir)):    
-        subprocess.run(["rm " + tmp_dir + "*_count"], shell=True)
+    # if any(File.endswith("_count") for File in os.listdir(tmp_dir)):    
+    #     subprocess.run(["rm " + tmp_dir + "*_count"], shell=True)
     
-    calcreadcounts(bamfiles)
-    subprocess.run(["cat " + tmp_dir + "*_count > " + tmp_dir + "total_readcount"], shell=True)
+    # calcreadcounts(bamfiles)
+    # subprocess.run(["cat " + tmp_dir + "*_count > " + tmp_dir + "total_readcount"], shell=True)
 
-    """ obtain kmer counts """
-    subprocess.run([os.getcwd() + "/util/kmerfreq " + str(tmp_dir) + "  " +str(args.contigs)], shell=True)
+    # """ obtain kmer counts """
+    # subprocess.run([os.getcwd() + "/util/kmerfreq " + str(tmp_dir) + "  " +str(args.contigs)], shell=True)
 
     """ clustering parameters (default) """
     d0 = 1.0
-    
-    print(tmp_dir, "tmp_dir")
+ 
 
     """ load contig read counts """
     contigs = pd.read_csv(tmp_dir + 'selected_contigs', header=None, sep=' ').to_numpy()
@@ -160,13 +158,14 @@ def binning(args):
                           dirichlet_prior_kmers, dirichlet_prior_perkmers.flatten(), \
                           d0, tmp_dir, q_read, q_kmer])   
 
-    clusters = dc.cluster_by_connecting_centroids(cluster_parameters)
+    clusters = cluster_by_connecting_centroids(cluster_parameters)
 
-    with open(tmp_dir + "mcdevol_clusters", 'w+') as file:
+    with open(args.outdir + args.output + "_clusters", 'w+') as file:
         for f in range(len(clusters)):
             for q in clusters[f]:
                 file.write(str(contig_names[q]) + "," + str(f) + "\n")
     del(kmer_counts, cluster_parameters)
+
 
     if args.fasta:
         subprocess.run([parent_path + "/util/get_sequence_bybin " + str(tmp_dir) + " mcdevol_clusters " +str(args.contigs) + " " + str(args.output) + " " + str(args.outdir)], shell=True)

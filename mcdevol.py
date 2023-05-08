@@ -16,7 +16,9 @@ def main():
 	parser = argparse.ArgumentParser(description="McDevol: An accurate metagenome binning of contigs based on decovolution of abundance and k-mer profiles")
 	
 	# input files
+	# input_group = parser.add_mutually_exclusive_group(required=True)
 	parser.add_argument("-i", "--input", type=str, help= "directory that contains all alignment files in bam format")
+	# input_group.add_argument("--count_matrix", type=str, help= "read count matrix in Contigs times samples dimension (CxN) in tab separated format without headers")
 	# contig file
 	parser.add_argument("-c", "--contigs", type=str, help="contig sequence file in fasta format (or zip)")
 	
@@ -39,7 +41,7 @@ def main():
 		print("McDevol",version.__version__)
 		exit(0)
 
-	if args.input is None:
+	if args.input is None :
 		print("Input missing! Please specifiy input directory to find bam files with -i/--input")
 		exit(1)
 
@@ -62,17 +64,17 @@ def main():
 			args.contigs = gzip.open(args.contigs,'rb')
 	
 	if args.outdir is None:
-		args.outdir = os.path.dirname(args.input)
-		
+		args.outdir = os.path.dirname(args.input) +  '/'
+	else:
+		args.outdir = args.outdir + '/'
+			
 	if args.output is None:
-		args.output = datetime.today().strftime('%Y-%m-%d')
+		args.output = "mcdevol" #datetime.today().strftime('%Y-%m-%d')
 
-		if not os.path.exists(args.outdir + '/' + args.output):
-			os.makedirs(args.outdir + '/' + args.output)
+		if not os.path.exists(args.outdir):
+			os.makedirs(args.outdir)
 		else:
 			pass
-
-	args.outdir = args.outdir + '/' + args.output
 
 	if not os.path.exists(args.input + '/tmp'):
 		os.makedirs(args.input + '/tmp')
