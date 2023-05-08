@@ -15,7 +15,7 @@ McDevol uses novel Bayesian statistics-based distance measure between contigs to
       git clone https://github.com/yazhinia/McDevol.git --recurse-submodules
       cd McDevol
        
-      conda create -n mcdevol_env numpy scipy pandas alive_progress
+      conda create -n mcdevol_env python numpy scipy pandas alive_progress
       conda activate mcdevol_env
       bash ./set_up.sh
       export PATH=$PATH:<path to McDevol>      
