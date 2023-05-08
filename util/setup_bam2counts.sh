@@ -14,10 +14,8 @@ make && make install
 
 export LD_LIBRARY_PATH=$(pwd)/src/
 
-#cd ../ && rm -rf build && mkdir build && cd build
+echo "bamtools is installed"
 
-#cmake -DCMAKE_INSTALL_PREFIX=../ ..
-#make && make install
 cd ../../../
 
 else
@@ -25,8 +23,6 @@ else
 echo "bamtools is already installed"
 
 fi
-
-echo "bamtools is installed"
 
 # end
 
