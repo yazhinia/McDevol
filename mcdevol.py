@@ -1,19 +1,15 @@
 #!/usr/bin/env python
+
 import os
 import sys
 import gzip
-import shutil
 import version
 import argparse
 from datetime import datetime
-from contigs_binning import binning
-
-from memory_profiler import profile
+from src.contigs_binning import binning
 
 parentdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(parentdir)
-
-@profile
 
 def main():
 	""" McDevol accurately reconstructs genomic bins from metagenomic samples using contig abundance and k-mer profiles"""
@@ -25,8 +21,8 @@ def main():
 	parser.add_argument("-c", "--contigs", type=str, help="contig sequence file in fasta format (or zip)")
 	
 	# options processing
-	parser.add_argument("-l", "--minlength", type=int, help="minimum length of contigs to be considered for initial binning", default=2500)
-	parser.add_argument("-s", "--seq_identity", type=float, help="minimum sequence identity for selecting contigs during read mapping", default=98.5)
+	parser.add_argument("-l", "--minlength", type=int, help="minimum length of contigs to be considered for initial binning", default=2000)
+	parser.add_argument("-s", "--seq_identity", type=float, help="minimum sequence identity for selecting contigs during read mapping", default=97.0)
 	parser.add_argument("-o", "--output", help="Name for the output file")
 	parser.add_argument("--fasta", help="output bin sequences in fasta", action="store_true")
 	parser.add_argument("-n", "--ncores", help="Number of cores to use", default=os.cpu_count(), type=int)
@@ -81,8 +77,6 @@ def main():
 	if not os.path.exists(args.input + '/tmp'):
 		os.makedirs(args.input + '/tmp')
 	else:
-		# shutil.rmtree(args.input + '/tmp/')
-		# os.makedirs(args.input + '/tmp', exist_ok=True)
 		pass
 
 	print("McDevol: metagenome binning started...\n")
