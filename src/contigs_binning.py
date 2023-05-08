@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 import os, sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+parent_path = os.path.dirname(os.path.dirname(__file__))
+sys.path.insert(0, parent_path)
 
 
 import time
@@ -12,16 +12,10 @@ import numpy as np
 import pandas as pd
 import optimize_parameters as opt
 from multiprocessing.pool import Pool
-from contigs_clustering import cluster_by_connecting_centroids
-import contigs_clustering_modified as ccm
-from nmf_connected_components import nmf_connected_components
-import assign_shortcontigs as shortcontigs
 import density_based_clustering as dc
-import psutil
 import util.bam2counts as bc
 from datetime import datetime
 
-import cProfile, pstats
 
 def optimize_prior_fortrimers(kmer_counts, Rc_kmers, trimercountsper_nt):
 
@@ -43,13 +37,17 @@ def calcreadcounts(bamfiles):
 
 def binning(args):
 
-    global input_dir, tmp_dir, minlength, ncpu, sequence_identity
+    global input_dir, tmp_dir, minlength, ncpu, sequence_identity, q_read, q_kmer
 
     input_dir = args.input
-    tmp_dir = args.input + '/sequence_identity_98p5/'
+    tmp_dir = args.input + '/tmp/'
     minlength = args.minlength
     ncpu = args.ncores
     sequence_identity = args.seq_identity
+
+    q_read = np.exp(-8.0)
+    q_kmer = np.exp(-8.0)
+
     s = time.time()
     print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
@@ -67,17 +65,12 @@ def binning(args):
     
     calcreadcounts(bamfiles)
     subprocess.run(["cat " + tmp_dir + "*_count > " + tmp_dir + "total_readcount"], shell=True)
-    
-    
 
-
-    # """ obtain kmer counts """
-    # subprocess.run([os.getcwd() + "/util/kmerfreq " + str(tmp_dir) + "  " +str(args.contigs)], shell=True)
+    """ obtain kmer counts """
+    subprocess.run([os.getcwd() + "/util/kmerfreq " + str(tmp_dir) + "  " +str(args.contigs)], shell=True)
 
     """ clustering parameters (default) """
     d0 = 1.0
-    d1 = d0
-    min_shared_contigs = 100
     
     print(tmp_dir, "tmp_dir")
 
@@ -92,42 +85,33 @@ def binning(args):
 
     read_counts = read_counts.to_numpy().T
     total_contigs_source = read_counts.shape[0]
-    print(np.shape(read_counts))
+    print(np.shape(read_counts), 'dimension of read count matrix')
 
-    """ remove contigs with no counts """
-    # Rc_reads = read_counts.sum(axis=1)
-    # read_counts = np.delete(read_counts, np.nonzero(Rc_reads==0)[0], axis=0)
     
     if len(np.nonzero(read_counts.sum(axis=1)==0)[0]) > 0:
         raise RuntimeError("some contigs have zero total counts across samples")
 
-    long_contigs_minlength = 2500
-    long_contigs = np.nonzero(contig_length>=long_contigs_minlength)[0]
+    long_contigs = np.nonzero(contig_length>=minlength)[0]
     read_counts = read_counts[long_contigs]
-    total_contigs, n_size = np.shape(read_counts)
-
-    print(np.shape(read_counts))
+    total_contigs, _ = np.shape(read_counts)
 
     """ process high read counts """
     Rc_reads = read_counts.sum(axis=1)
     Rn_reads = read_counts.sum(axis=0)
    
     ss = time.time()
-    dirichlet_prior = opt.optimize_alpha(read_counts, Rc_reads, Rn_reads, n_size)
+    dirichlet_prior = opt.optimize_alpha(read_counts, Rc_reads, Rn_reads)
     print('obtained alpha parameter for read counts', dirichlet_prior, 'in' ,time.time()-ss,'seconds')
     ss = time.time()
     dirichlet_prior_persamples  = dirichlet_prior * Rn_reads / Rn_reads.sum()
     print("dirichlet_prior_persamples", dirichlet_prior_persamples)
 
-    """ generate gamma parameters for Bayes factor in distance calculation """
-    
+
     """ load kmer counts """
     kmer_counts = pd.read_csv(tmp_dir + "kmer_counts", header=None)
     kmer_counts = kmer_counts.to_numpy()
     kmer_counts = kmer_counts.reshape(total_contigs_source, 256) # convert 1D array to a 2D array with {total_contigs, all 4-mers} shape  
     kmer_counts = (kmer_counts / 2)
-
-    # kmer_counts = kmer_counts[longer_contig_inds]
 
     print("processing kmer frequencies")
 
@@ -158,8 +142,6 @@ def binning(args):
 
     """ process high kmer counts """
     kmer_counts = kmer_counts[long_contigs]
-    # scale_down_kmer = R_max / (R_max + kmer_counts.reshape(-1,64,4).sum(axis=2))
-    # kmer_counts = np.multiply(kmer_counts, np.repeat(scale_down_kmer, 4, axis=1))
 
 
     trimercountsper_nt = kmer_counts.reshape(-1,64,4).sum(axis=0)
@@ -173,57 +155,22 @@ def binning(args):
     contig_length = contig_length[long_contigs]
     contig_names = contig_names[long_contigs]
 
-    # kmer_counts =1
-    # Rc_kmers = 1
-    # kmer_counts_source = 1
-    # dirichlet_prior_kmers = 1
-    # dirichlet_prior_perkmers = np.zeros(10)
-
-    # # """ end """
-
     cluster_parameters = list([read_counts, Rc_reads, contig_length, total_contigs, \
                           dirichlet_prior, dirichlet_prior_persamples, kmer_counts, Rc_kmers, \
                           dirichlet_prior_kmers, dirichlet_prior_perkmers.flatten(), \
-                          d0, d1, min_shared_contigs, tmp_dir])   
-    # clusters, numclust_incomponents = cluster_by_connecting_centroids(cluster_parameters)
-    # clusters, numclust_incomponents = ccm.cluster_by_connecting_centroids(cluster_parameters)
-    clusters, numclust_incomponents = dc.cluster_by_connecting_centroids(cluster_parameters)
-    with open(tmp_dir + "density_components", 'w+') as file:
+                          d0, tmp_dir, q_read, q_kmer])   
+
+    clusters = dc.cluster_by_connecting_centroids(cluster_parameters)
+
+    with open(tmp_dir + "mcdevol_clusters", 'w+') as file:
         for f in range(len(clusters)):
             for q in clusters[f]:
-                file.write(str(q) + " " + str(f) + "\n")
+                file.write(str(contig_names[q]) + "," + str(f) + "\n")
     del(kmer_counts, cluster_parameters)
 
-    # profiler = cProfile.Profile()
-    # profiler.enable()
-
-    bins_ = nmf_connected_components(read_counts, contig_length, clusters, numclust_incomponents, dirichlet_prior, dirichlet_prior_persamples)
-    
-    # profiler.disable()
-    # stats = pstats.Stats(profiler).sort_stats('ncalls')
-    # stats.print_stats()
-    print(len(np.unique(bins_[1])), "bins obtained in total")
-    print(bins_[1])
-
-    np.savetxt(tmp_dir + "bin_assignments", np.stack((contig_names[bins_[0].astype(int)], bins_[1].astype(int))).T, fmt='%s,%d')
-
-    np.savetxt(tmp_dir + "bin_assignments_inds", bins_)
-
     if args.fasta:
-        subprocess.run([os.getcwd() + "/util/get_sequence_bybin " + str(tmp_dir) + " bin_assignments " +str(args.contigs) + " " + str(args.output) + " " + str(args.outdir)], shell=True)
-
-    print(bins_ , time.time()-ss, 'seconds')
-    # subprocess.run(["rm " + str(args.outdir) + "/" + "*_seq.fasta"], shell=True)
-    # np.savetxt(tmp_dir + "bin_assignments_density_inds", bins_, fmt='%d')
-
-    print(psutil.disk_usage('/'), "disk usage", psutil.cpu_percent(), "cpu percentage")
-    print(psutil.swap_memory(), "swap memory", psutil.virtual_memory().percent, "memory percentage")
-    print(psutil.virtual_memory(), "virutial memory")
-    print(psutil.getloadavg(), "get log of memory load")
-
-    # """ assign short contigs """
-    shortcontigs.assign_shortcontigs(tmp_dir, long_contigs_minlength, Rc_reads, contigs, bins_)
-    
+        subprocess.run([parent_path + "/util/get_sequence_bybin " + str(tmp_dir) + " mcdevol_clusters " +str(args.contigs) + " " + str(args.output) + " " + str(args.outdir)], shell=True)
+  
     print('metagenome binning is completed in', time.time()-s,'seconds')
 
     gc.collect()
