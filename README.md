@@ -60,7 +60,7 @@ note: bamfiles should be unsorted (i.e., alignments are arranged by read names a
 `python3 mcdevol.py -h or python3 mcdevol.py`
 
 
-## Custome installation with bamtools pre-installed
+<!---## Custome installation with bamtools pre-installed
 MetaDevol uses bamtools API for processing alignment bam files. When you run `bash setup.sh`, bamtools will be automatically installed and no modification is required. If the user has bamtools already installed in their system, then please go to bam2counts folder of McDevol and edit CMakeLists.txt file at target_link_libraries and target_include_directories lines as follows.
 
       target_link_libraries(bam2counts PRIVATE "${PATH}/bamtools/lib64/libbamtools.so")
@@ -68,4 +68,4 @@ MetaDevol uses bamtools API for processing alignment bam files. When you run `ba
       target_include_directories(bam2counts PRIVATE "${PATH}/bamtools/include/bamtools/")
       target_include_directories(bam2counts PRIVATE "${PATH}/bamtools/src/")
       
-update `${PATH}` to the absolute parent path of bamtools where it is installed. Then in bam2counts folder, run `bash build.sh && cd ../ && bash set_up.sh` to install McDevol. 
+update `${PATH}` to the absolute parent path of bamtools where it is installed. Then in bam2counts folder, run `bash build.sh && cd ../ && bash set_up.sh` to install McDevol. --->
