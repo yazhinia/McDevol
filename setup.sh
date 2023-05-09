@@ -49,4 +49,4 @@ fi
 
 cd ../
 
-
+export LD_LIBRARY_PATH=$(pwd)/bam2counts/bamtools/build/src/
