@@ -23,13 +23,13 @@ Now ready to use.
 
 ## Advantages
 
-The advantages of McDevol are that 
+(i) McDevol finds contigs belonging to the same genome using a novel distance measure, defined as the posterior probability that the count profiles of contigs are drawn from the same distribution.
 
-(i) it finds contigs belonging to the same genome using a novel distance measure, defined as the posterior probability that the count profiles of contigs are drawn from the same distribution.
+(ii) It applies a simple agglomerative algorithm to get highly pure clusters followed by merging clusters of the same genomic origin through density-based clustering to the increase the completeness. This approach is much simpler and faster than an iterative medoid clustering and expectation-maximization algorithm used by MetaBat2 and MaxBin2, respectively. 
 
-(ii) it applies a simple agglomerative algorithm to get highly pure clusters followed by merging clusters of the same genomic origin through density-based clustering to the increase the completeness. This approach is much simpler and faster than an iterative medoid clustering and expectation-maximization algorithm used by MetaBat2 and MaxBin2, respectively. 
+(iii) It does not relying single-copy marker genes to refine clusters as done by other existing binners thereby resulting in over-estimation completeness and purity measures from CheckM evaluation.
 
-(iii) it does not relying single-copy marker genes to refine clusters as done by other existing binners thereby resulting in over-estimation completeness and purity measures from CheckM evaluation.
+Together, it is very fast, memory and less dependence.
 
 <!--- McDevol takes roughly 2min to complete metagenome binning of CAMI2 marine dataset while MetaBAT2, the fastest and memory-efficient binner that exists, takes ~1hr. Memory usage of McDevol is ~400Mb while MetaBAT2 requires 1.5Gb. Together, McDevol is the fastest and memory-efficient binning tool and would be suitable choice for large-scale metagenome binning. More details on McDevol performance will be given in the near future... --->
 
