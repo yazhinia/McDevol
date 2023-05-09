@@ -15,12 +15,12 @@ McDevol uses novel Bayesian statistics-based distance measure between contigs to
       git clone https://github.com/yazhinia/McDevol.git --recurse-submodules
       cd McDevol
        
-      conda create -n mcdevol_env python numpy scipy pandas alive_progress
-      conda activate mcdevol_env
+      pip install -r requirements.txt
       bash setup.sh
       export PATH=$PATH:<path to McDevol>      
 Now ready to use.
-
+<!--- conda create -n mcdevol_env python numpy scipy pandas alive_progress
+      conda activate mcdevol_env --->
 ## Advantages
 
 (i) McDevol finds contigs belonging to the same genome using a novel distance measure, defined as the posterior probability that the count profiles of contigs are drawn from the same distribution.
