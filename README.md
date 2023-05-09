@@ -58,14 +58,14 @@ note: bamfiles should be unsorted (i.e., alignments are arranged by read names a
 `python3 mcdevol.py -h or python3 mcdevol.py`
 
 
-## Sample-wise assembly
-When the contigs are assembled for every sample, we suggested to apply reduction reduction for _every bin_ using the following recommended steps. For which, users are requested to have plass (https://github.com/soedinglab/plass) and linclust module from MMseqs2 (https://github.com/soedinglab/MMseqs2) installed.
+## Metagenome binning of contigs from sample-wise assembly
+When the contigs are assembled for every sample, we suggested to apply reduction reduction for _every bin_ resultin from Mcdevol using the following recommended steps. For which, users are requested to have plass (https://github.com/soedinglab/plass) and linclust module from MMseqs2 (https://github.com/soedinglab/MMseqs2) installed.
 
-# 1) post-binning assembly
+### 1) post-binning assembly
 
       plass nuclassemble bin<0..N>.fasta bin<0..N>_assembled.fasta tmp --max-seq-len 10000000 --keep-target false --contig-output-mode 0 --min-seq-id 0.990 --chop-cycle false
       
-# 2) redundancy reduction
+### 2) redundancy reduction
       mmseqs easy-linclust bin<0..N>.fasta output<0..N> tmp --min-seq-id 0.970 --min-aln-len 200 --cluster-mode 2 --shuffle 0 -c 0.99 --cov-mode 1 --max-seq-len 10000000
 
 <!---## Custome installation with bamtools pre-installed
