@@ -56,17 +56,17 @@ def binning(args):
     flags[0] = 1
     bamfiles = list(map(list,zip(bamfiles,flags)))
     
-    # if os.path.isfile(tmp_dir + "selected_contigs"):
-    #     subprocess.run(["rm " + tmp_dir + "selected_contigs"], shell=True)
+    if os.path.isfile(tmp_dir + "selected_contigs"):
+        subprocess.run(["rm " + tmp_dir + "selected_contigs"], shell=True)
 
-    # if any(File.endswith("_count") for File in os.listdir(tmp_dir)):    
-    #     subprocess.run(["rm " + tmp_dir + "*_count"], shell=True)
+    if any(File.endswith("_count") for File in os.listdir(tmp_dir)):    
+        subprocess.run(["rm " + tmp_dir + "*_count"], shell=True)
     
-    # calcreadcounts(bamfiles)
-    # subprocess.run(["cat " + tmp_dir + "*_count > " + tmp_dir + "total_readcount"], shell=True)
+    calcreadcounts(bamfiles)
+    subprocess.run(["cat " + tmp_dir + "*_count > " + tmp_dir + "total_readcount"], shell=True)
 
-    # """ obtain kmer counts """
-    # subprocess.run([os.getcwd() + "/util/kmerfreq " + str(tmp_dir) + "  " +str(args.contigs)], shell=True)
+    """ obtain kmer counts """
+    subprocess.run([os.getcwd() + "/util/kmerfreq " + str(tmp_dir) + "  " +str(args.contigs)], shell=True)
 
     """ clustering parameters (default) """
     d0 = 1.0

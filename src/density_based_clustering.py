@@ -1,7 +1,11 @@
+import os, sys
+parent_path = os.path.dirname(os.path.dirname(__file__))
+sys.path.insert(0, parent_path)
+
 import numpy as np
 import time
 import gc
-import metadevol_distance as calc_distance
+from util.bayesian_distance import compute_dist
 from alive_progress import alive_bar
 
 def cluster_by_centroids(argv):
@@ -38,7 +42,7 @@ def cluster_by_centroids(argv):
         for c in iterate_ind:
         
             if cluster_assigned[c] < 0 :
-                distance = calc_distance.compute_dist(c, read_counts, kmer_counts, Rc_reads, Rc_kmers, dirichlet_prior, dirichlet_prior_persamples, dirichlet_prior_kmers, dirichlet_prior_perkmers, np.exp(-8.0), np.exp(-8.0))
+                distance = compute_dist(c, read_counts, kmer_counts, Rc_reads, Rc_kmers, dirichlet_prior, dirichlet_prior_persamples, dirichlet_prior_kmers, dirichlet_prior_perkmers, np.exp(-8.0), np.exp(-8.0))
                 clustercentroids_list.append(c)
 
                 inds = np.nonzero(distance < dist_to_assigned)[0] # " there could be empty list "
@@ -106,7 +110,7 @@ def density_based_clustering(cluster_parameters, cluster_centroids_read, cluster
     separation_dist = np.zeros(K) + 1e30
     
     for k in range(K):
-        distance = calc_distance.compute_dist(k, cluster_centroids_read, cluster_centroids_kmer, Rc_reads, Rc_kmers, dirichlet_prior, dirichlet_prior_persamples, dirichlet_prior_kmers, dirichlet_prior_perkmers, np.exp(-8.0), np.exp(-8.0))
+        distance = compute_dist(k, cluster_centroids_read, cluster_centroids_kmer, Rc_reads, Rc_kmers, dirichlet_prior, dirichlet_prior_persamples, dirichlet_prior_kmers, dirichlet_prior_perkmers, np.exp(-8.0), np.exp(-8.0))
         inds = np.nonzero(distance < d1)[0]
         
         if distance[k] > d1:
