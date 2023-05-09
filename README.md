@@ -14,7 +14,6 @@ McDevol uses novel Bayesian statistics-based distance measure between contigs to
 ## Installation
       git clone https://github.com/yazhinia/McDevol.git --recurse-submodules
       cd McDevol
-       
       pip install -r requirements.txt
       bash setup.sh
       export PATH=$PATH:<path to McDevol>      
