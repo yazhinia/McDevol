@@ -59,7 +59,7 @@ note: bamfiles should be unsorted (i.e., alignments are arranged by read names a
 
 
 ## Metagenome binning of contigs from sample-wise assembly
-When the contigs are assembled for every sample, we suggested to apply reduction reduction for _every bin_ resultin from Mcdevol using the following recommended steps. For which, users are requested to have plass (https://github.com/soedinglab/plass) and linclust module from MMseqs2 (https://github.com/soedinglab/MMseqs2) installed.
+When the contigs are assembled for every sample, we suggested to apply reduction reduction for _every bin_ resultin from Mcdevol using the following recommended steps. For which, users are requested to have plass (https://github.com/soedinglab/plass) and MMseqs2 (https://github.com/soedinglab/MMseqs2) already installed.
 
 ### 1) post-binning assembly
 
