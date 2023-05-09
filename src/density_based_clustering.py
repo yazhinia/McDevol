@@ -8,20 +8,19 @@ import gc
 from util.bayesian_distance import compute_dist
 from alive_progress import alive_bar
 
-def cluster_by_centroids(argv):
-    read_counts = argv[0]
-    Rc_reads = argv[1]
-    contig_length = argv[2]
-    total_contigs = argv[3]
-    dirichlet_prior = argv[4]
-    dirichlet_prior_persamples = argv[5]
-    kmer_counts = argv[6]
-    Rc_kmers = argv[7]
-    dirichlet_prior_kmers = argv[8]
-    dirichlet_prior_perkmers = argv[9].flatten()
-    d0 = argv[10]
-    d1 = argv[11]
-    tmp_dir = argv[13]
+def cluster_by_centroids(cluster_parameters):
+    read_counts = cluster_parameters[0]
+    Rc_reads = cluster_parameters[1]
+    contig_length = cluster_parameters[2]
+    total_contigs = cluster_parameters[3]
+    dirichlet_prior = cluster_parameters[4]
+    dirichlet_prior_persamples = cluster_parameters[5]
+    kmer_counts = cluster_parameters[6]
+    Rc_kmers = cluster_parameters[7]
+    dirichlet_prior_kmers = cluster_parameters[8]
+    dirichlet_prior_perkmers = cluster_parameters[9].flatten()
+    d0 = cluster_parameters[10]
+    tmp_dir = cluster_parameters[11]
     members = []
     cluster_curr = 0
     cluster_assigned = np.zeros(total_contigs, dtype=int) - 1
@@ -55,7 +54,7 @@ def cluster_by_centroids(argv):
                     dist_to_assigned[inds] = distance[inds]
                     cluster_assigned[inds] = cluster_curr
 
-                    for n in np.nonzero(distance < d1)[0]:
+                    for n in np.nonzero(distance < d0)[0]:
                         neighbors[n].append(cluster_curr)
 
                     cluster_curr += 1
