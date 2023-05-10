@@ -92,17 +92,15 @@ void construct_umap(const BamTools::BamReader& reader, std::unordered_map<int, f
     if (header.ToString().size() != 0) {
         unsigned int ref_id = 0;
         while(std::getline(ss,to,'\n')) {
-            std::string g, length;
+            std::string g, contig_id, length;
             std::stringstream st(to);
             st >> g;
 
             if (g.rfind("@SQ",0) == 0) {
                 st >> g;
                 contig_id = g;
-                int pos = g.find("C");
-                g = g.substr(pos+1);
                 st >> length;
-                pos = length.find(":");
+                int pos = length.find(":");
                 length = length.substr(pos+1);
                 
                 if (std::stoi(length) >= minlength) { // check length of contigs and insert to umap only if above minimum length for contigs
@@ -170,10 +168,8 @@ void obtain_readcounts(std::string bamfile, const int flag, std::string input_di
 
         std::ofstream outfile;
         outfile.open(tmp_dir + "/" + out +"_count");
-        std::ofstream eachcount;
-        eachcount.open(tmp_dir + "/" + out +"_eachcount");
-        std::ofstream eachcount_pre;
-        eachcount.open(tmp_dir + "/" + out +"_eachcount_pre");
+        // std::ofstream eachcount;
+        // eachcount.open(tmp_dir + "/" + out +"_eachcount");
 
         while (reader.GetNextAlignment(aln)) {
     
@@ -244,9 +240,9 @@ void obtain_readcounts(std::string bamfile, const int flag, std::string input_di
                                 parsed_al.erase(std::remove_if(parsed_al.begin(),parsed_al.end(), [&](const al_data& a) {return it->sequence_identity > a.sequence_identity;}), parsed_al.end());
 
                                 if (parsed_al.size() > 0) {
-                                    for (size_t j = 0; j < parsed_al.size(); j++) {
-                                        eachcount << sequenceidentity << " " << parsed_al[j].read << " " << parsed_al[j].contig << " " << parsed_al[j].pair_dir << " " << parsed_al[j].paired << " " << parsed_al.size() << " " << parsed_al[j].sequence_identity << "\n";
-                                    }
+                                    // for (size_t j = 0; j < parsed_al.size(); j++) {
+                                    //     eachcount << sequenceidentity << " " << parsed_al[j].read << " " << parsed_al[j].contig << " " << parsed_al[j].pair_dir << " " << parsed_al[j].paired << " " << parsed_al.size() << " " << parsed_al[j].sequence_identity << "\n";
+                                    // }
                                     unsigned int paired_count = std::count_if(parsed_al.begin(), parsed_al.end(),[](const al_data& a) { return a.paired == 1;});
                                     unsigned int non_paired_count = parsed_al.size() - paired_count;
 
@@ -282,8 +278,7 @@ void obtain_readcounts(std::string bamfile, const int flag, std::string input_di
             outfile << k.first << " " << out << " " << k.second << "\n";
         }
         outfile.close();
-        eachcount.close();
-        eachcount_pre.close();
+
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::seconds>(stop - start);
         std::stringstream text_out;
