@@ -41,8 +41,7 @@ int main(int argc, char *argv[]) {
         std::string contigs = argv[3];
         std::string output = argv[4];
         std::string outdir = argv[5];
-        
-        std::cout << bin_ids << "\n";
+
         std::fstream binassignment;
         binassignment.open(tmp_dir + bin_ids);
 

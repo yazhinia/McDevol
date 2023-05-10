@@ -163,11 +163,11 @@ def binning(args):
         for f in range(len(clusters)):
             for q in clusters[f]:
                 file.write(str(contig_names[q]) + "," + str(f) + "\n")
+        print(f'{f+1} bins are obtained')
     del(kmer_counts, cluster_parameters)
 
-
     if args.fasta:
-        subprocess.run([parent_path + "/util/get_sequence_bybin " + str(tmp_dir) + " mcdevol_clusters " +str(args.contigs) + " " + str(args.output) + " " + str(args.outdir)], shell=True)
+        subprocess.run([parent_path + "/util/get_sequence_bybin " + str(args.outdir) + " " + str(args.output) + "_bins " + str(args.contigs) + " " + str(args.output) + " " + str(args.outdir)], shell=True)
   
     print('metagenome binning is completed in', time.time()-s,'seconds')
 

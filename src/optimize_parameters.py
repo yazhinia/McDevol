@@ -14,21 +14,23 @@ def log_gamma(x):
 def factorial(x):
     return log_gamma(x + 1)
 
-def train_alpha(a, read_counts, Rc_reads, Rn_reads):
-    Rc_factorial = factorial(Rc_reads)
-    xn_factorial = factorial(read_counts).sum(axis=1)
+def train_alpha(a, counts, Rc, Rn):
+    Rc_factorial = factorial(Rc)
+    xn_factorial = factorial(counts).sum(axis=1)
     first_term = Rc_factorial - xn_factorial
-    an = np.exp(a) * Rn_reads / Rn_reads.sum()
+
+    an = np.exp(a) * Rn / Rn.sum()
+
     second_term = log_gamma(an.sum()) - log_gamma(an).sum()
-    third_term = log_gamma(read_counts + an).sum(axis=1) - log_gamma(Rc_reads + an.sum())
+    third_term = log_gamma(counts + an).sum(axis=1) - log_gamma(Rc + an.sum())
     maximize_term = first_term + second_term + third_term
     return -maximize_term.sum()
 
-def optimize_alpha(read_counts, Rc_reads, Rn_reads):
+def optimize_alpha(counts, Rc, Rn):
     
     __doc__ = "optimize alpha for dirichlet prior distribution using maximum likelihood estimation"
 
-    fun = lambda a: train_alpha(a, read_counts, Rc_reads, Rn_reads)
+    fun = lambda a: train_alpha(a, counts, Rc, Rn)
     optimized_alpha = minimize_scalar(fun, method = 'brent')
     return np.exp(optimized_alpha.x)
     

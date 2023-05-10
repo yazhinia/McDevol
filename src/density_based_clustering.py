@@ -90,7 +90,7 @@ def cluster_by_centroids(cluster_parameters):
     print("Initial clustering took:", time.time() - s,"seconds")
 
     gc.collect()
-
+    
     return cluster_assigned, members, cluster_centroids_read, cluster_centroids_kmer, cluster_length
 
 
@@ -117,7 +117,6 @@ def density_based_clustering(cluster_parameters, cluster_centroids_read, cluster
         
         nearest[k] = k
         density[k] = sum(cluster_length[inds])
-
         if len(np.nonzero(distance >= 1e30)[0]) > 0:
             raise RuntimeError("distance is far from 1e30")
         
@@ -143,7 +142,7 @@ def density_based_clustering(cluster_parameters, cluster_centroids_read, cluster
 def obtain_clusters(density, separation_dist, nearest):
 
     denssep_threshold = 1000
-    sep_min = 2.0
+    sep_min = 1.0
 
     if density.size != separation_dist.size:
         raise RuntimeError(f'density size and separation distance size doesn\'t match')
