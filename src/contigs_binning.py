@@ -159,7 +159,7 @@ def binning(args):
 
     clusters = cluster_by_connecting_centroids(cluster_parameters)
 
-    with open(args.outdir + args.output + "_clusters", 'w+') as file:
+    with open(args.outdir + args.output + "_bins", 'w+') as file:
         for f in range(len(clusters)):
             for q in clusters[f]:
                 file.write(str(contig_names[q]) + "," + str(f) + "\n")
