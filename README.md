@@ -5,7 +5,7 @@ A fast and memory-efficient metagenome binning tool
 Metagenome binning relies on the following underlying basis (i) contigs originated from the same genome will have correlated abundance profiles across samples and (ii) k-mer (tetramer) frequency is a characteristics of microbial genomes and distinguishes genomes from different genus. Thus, contigs from the same genome show correlation in k-mer frequency. Using correlation in profiles of read and k-mer counts, contigs from the same genomes could be identified in the metagenome assembly and binned into *M*etagenome-*a*ssembled *g*enomes (MAGs).
 
 ## Algorithm
-McDevol uses novel Bayesian statistics-based distance measure on read counts and k-mer profiles to bin metagenomic contigs. The method has two steps, (i) initial agglomerative clustering using bayesian distance and (ii) density-based clustering to merge clusters of possibly the same genome into components to provide final genomic bins. An outline of algorithm is depicted below.
+McDevol uses a novel Bayesian statistics-based distance measure on read counts and k-mer profiles to bin metagenomic contigs. The method has two steps, (i) initial agglomerative clustering using bayesian distance and (ii) density-based clustering to merge clusters of possibly the same genome into components to provide final genomic bins. An outline of algorithm is depicted below.
 
 ![McDevol_algorithm](https://user-images.githubusercontent.com/29796007/235193887-ba72c9b6-dffa-4440-a88c-9fbd5e603378.png)
 
