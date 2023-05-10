@@ -2,12 +2,10 @@
 A fast and memory-efficient metagenome binning tool
 
 ## Introduction
-Metagenome binning relies on the following underlying basis (i) Contigs originated from same genome will have correlated abundance profiles across samples and (ii) k-mer (tetramer) frequency is a characteristics of microbial genomes and distinguishes genomes from different genus. Thus, contigs from same genome show correlation in k-mer frequency
-
-Using this basis, contigs from the same genomes could be identified in the metagenome assembly and grouped into *M*etagenome-*a*ssembled *g*enomes (MAGs).
+Metagenome binning relies on the following underlying basis (i) contigs originated from the same genome will have correlated abundance profiles across samples and (ii) k-mer (tetramer) frequency is a characteristics of microbial genomes and distinguishes genomes from different genus. Thus, contigs from the same genome show correlation in k-mer frequency. Using correlation in profiles of read and k-mer counts, contigs from the same genomes could be identified in the metagenome assembly and binned into *M*etagenome-*a*ssembled *g*enomes (MAGs).
 
 ## Algorithm
-McDevol uses novel Bayesian statistics-based distance measure between contigs to cluster them by their read counts and k-mer profiles. The initial clusters are merged further by distances with relaxed threshold into components that form the final genomic bins. The outline of algorithm is shown below.
+McDevol uses novel Bayesian statistics-based distance measure on read counts and k-mer profiles to bin metagenomic contigs. The method has two steps, (i) initial agglomerative clustering using bayesian distance and (ii) density-based clustering to merge clusters of possibly the same genome into components to provide final genomic bins. An outline of algorithm is depicted below.
 
 ![McDevol_algorithm](https://user-images.githubusercontent.com/29796007/235193887-ba72c9b6-dffa-4440-a88c-9fbd5e603378.png)
 
@@ -16,7 +14,8 @@ McDevol uses novel Bayesian statistics-based distance measure between contigs to
       cd McDevol
       pip install -r requirements.txt
       bash setup.sh
-      export PATH=$PATH:<path to McDevol>      
+      export PATH=$PATH:<path to McDevol>
+      mcdevol.py -i test -c test/contigs.fasta -o out # testing
 Now ready to use.
 <!--- conda create -n mcdevol_env python numpy scipy pandas alive_progress
       conda activate mcdevol_env --->
@@ -24,11 +23,11 @@ Now ready to use.
 
 (i) McDevol finds contigs belonging to the same genome using a novel distance measure, defined as the posterior probability that the count profiles of contigs are drawn from the same distribution.
 
-(ii) It applies a simple agglomerative algorithm to get highly pure clusters followed by merging clusters of the same genomic origin through density-based clustering to the increase the completeness. This approach is much simpler and faster than an iterative medoid clustering and expectation-maximization algorithm used by MetaBat2 and MaxBin2, respectively. 
+(ii) It applies a simple agglomerative algorithm to get high purity clusters followed by merging clusters of the same genomic origin through density-based clustering to the increase the completeness. This approach is much simpler and faster than an iterative medoid clustering and expectation-maximization algorithm used by MetaBat2 and MaxBin2, respectively. 
 
-(iii) It does not relying single-copy marker genes to refine clusters as done by other existing binners thereby resulting in over-estimation completeness and purity measures from CheckM evaluation.
+(iii) It does not relying single-copy marker genes to refine clusters as done by other existing binners which results in over-estimation completeness and purity measures during CheckM evaluation.
 
-Together, it is very fast, memory and less dependence.
+Together, this tool is very fast, memory-efficient and less dependent on external tools.
 
 <!--- McDevol takes roughly 2min to complete metagenome binning of CAMI2 marine dataset while MetaBAT2, the fastest and memory-efficient binner that exists, takes ~1hr. Memory usage of McDevol is ~400Mb while MetaBAT2 requires 1.5Gb. Together, McDevol is the fastest and memory-efficient binning tool and would be suitable choice for large-scale metagenome binning. More details on McDevol performance will be given in the near future... --->
 
@@ -38,15 +37,15 @@ Together, it is very fast, memory and less dependence.
 
 `-i | --input` directory in which all bamfiles are present
 
-`-c | --contigs` fasta file of contig sequenes assembled from all samples (sample-wise assembly)
+`-c | --contigs` a fasta file for contig sequences (single-sample or co-assembly)
 
-note: bamfiles should be unsorted (i.e., default output of aligners and alignments are arranged by read names). As of now, mcdevol supports bamfiles from `bwa-mem` and `bowtie2`.
+note: input bamfiles should be unsorted (i.e., a default output of aligners and alignments are arranged by read names). As of now, McDevol supports bamfiles from `bwa-mem` and `bowtie2` tools.
 
 ## Additional options
 
 `-l | --minlength` minimum length of contigs to be considered for binning [default 1000kb]
 
-`-o | --output` name of output file [default, date]
+`-o | --output` the name of output file [default, 'mcdevol']
 
 `-d | --outdir` output directory [default, working directory]
 
@@ -56,17 +55,13 @@ note: bamfiles should be unsorted (i.e., default output of aligners and alignmen
 ## Help
 `mcdevol.py -h or mcdevol.py`
 
-test run
-`mcdevol.py -i test -c test/contigs.fasta -o out`
-
 ## Recommended workflow
-We recommend single-sample assembly to obtain contigs as it minimizes constructing ambiguous assemblies for strain genomes. Perform mapping on a concatenated list of contigs for each sample and run mcdevol. Bins from single-sample assembly is highly redundant because the same genomic region is represented by multiple contigs assembled independently from different samples. To remove redudancy, we recommend the following post-binning redundancy reduction steps.
+We recommend single-sample assembly to obtain contigs as it minimizes constructing ambiguous assemblies for strain genomes. Perform mapping on a concatenated list of contigs for each sample and run McDevol. Bins from single-sample assembly input is highly redundant because the same genomic region can be represented by multiple contigs assembled independently from different samples. To remove redudancy, we recommend the following post-binning redundancy reduction steps.
 
 ## Metagenome binning of contigs from sample-wise assembly
-When the contigs are assembled for every sample, we suggested to apply reduction reduction for _every bin_ resulting from Mcdevol using the following recommended steps. For which, users are requested to have plass (https://github.com/soedinglab/plass) and MMseqs2 (https://github.com/soedinglab/MMseqs2) already installed.
+When the contigs are assembled from each sample, perform post-binning assembly and clustering on _every bin_ produced by Mcdevol. For which, users are requested to have plass (https://github.com/soedinglab/plass) and MMseqs2 (https://github.com/soedinglab/MMseqs2) separately installed.
 
 ### 1) post-binning assembly
-
       plass nuclassemble bin<0..N>.fasta bin<0..N>_assembled.fasta tmp --max-seq-len 10000000 --keep-target false --contig-output-mode 0 --min-seq-id 0.990 --chop-cycle false
       
 ### 2) redundancy reduction
