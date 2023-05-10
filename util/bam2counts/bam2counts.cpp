@@ -97,8 +97,7 @@ void construct_umap(const BamTools::BamReader& reader, std::unordered_map<int, f
             st >> g;
 
             if (g.rfind("@SQ",0) == 0) {
-                st >> g;
-                contig_id = g;
+                st >> contig_id;
                 st >> length;
                 int pos = length.find(":");
                 length = length.substr(pos+1);
