@@ -12,7 +12,7 @@ import pandas as pd
 import src.optimize_parameters as opt
 from multiprocessing.pool import Pool
 from src.density_based_clustering import cluster_by_connecting_centroids
-import util.bam2counts as bc
+from util.bam2counts import obtain_readcounts
 from datetime import datetime
 
 
@@ -28,7 +28,7 @@ def optimize_prior_fortrimers(kmer_counts, Rc_kmers, trimercountsper_nt):
     return alpha_values, awa_values
 
 def call_bam2counts(bam):
-    bc.obtain_readcounts(bam[0], bam[1], input_dir, tmp_dir, minlength, sequence_identity)
+    obtain_readcounts(bam[0], bam[1], input_dir, tmp_dir, minlength, sequence_identity)
 
 def calcreadcounts(bamfiles):
     with Pool(ncpu) as pool:
@@ -141,13 +141,12 @@ def binning(args):
     """ process high kmer counts """
     kmer_counts = kmer_counts[long_contigs]
 
-
     trimercountsper_nt = kmer_counts.reshape(-1,64,4).sum(axis=0)
     Rc_kmers = kmer_counts.reshape(-1,64,4).sum(axis=2)
 
     ss = time.time()
     dirichlet_prior_kmers, dirichlet_prior_perkmers = optimize_prior_fortrimers(kmer_counts, Rc_kmers, trimercountsper_nt)
-    print('obtained alpha parameters for kmer counts in', time.time()-ss,'seconds')
+    print('obtained alpha parameters for kmer counts in', time.time()-ss, 'seconds')
     del(trimercountsper_nt)
 
     contig_length = contig_length[long_contigs]
