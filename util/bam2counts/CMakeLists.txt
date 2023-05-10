@@ -15,8 +15,8 @@ add_subdirectory(pybind11)
 pybind11_add_module(bam2counts bam2counts.cpp)
 
 
-target_link_libraries(bam2counts PRIVATE "/big/software/bamtools/build/src/libbamtools.so")
+target_link_libraries(bam2counts PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/bamtools/lib/libbamtools.so")
 target_link_libraries(bam2counts PRIVATE -lz)
-target_include_directories(bam2counts PRIVATE "/usr/include/bamtools/")
-target_include_directories(bam2counts PRIVATE "/usr/bin/")
+target_include_directories(bam2counts PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/bamtools/include/bamtools/")
+target_include_directories(bam2counts PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/bamtools/src/")
 
