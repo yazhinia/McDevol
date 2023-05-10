@@ -5,7 +5,7 @@ A fast and memory-efficient metagenome binning tool
 Metagenome binning relies on the following underlying basis (i) contigs originated from the same genome will have correlated abundance profiles across samples and (ii) k-mer (tetramer) frequency is a characteristics of microbial genomes and distinguishes genomes from different genus. Thus, contigs from the same genome show correlation in k-mer frequency. Using correlation in profiles of read and k-mer counts, contigs from the same genomes could be identified in the metagenome assembly and binned into *M*etagenome-*a*ssembled *g*enomes (MAGs).
 
 ## Algorithm
-McDevol uses a novel Bayesian statistics-based distance measure on read counts and k-mer profiles to bin metagenomic contigs. The method has two steps, (i) initial agglomerative clustering using bayesian distance and (ii) density-based clustering to merge clusters of possibly the same genome into components to provide final genomic bins. An outline of algorithm is depicted below.
+McDevol uses a novel Bayesian statistics-based distance measure on read counts and k-mer profiles to bin metagenomic contigs. The method has two steps, (i) initial agglomerative clustering using bayesian distance and (ii) density-based clustering using summed read and k-mer count profiles to merge clusters of possibly the same genome into components to provide final genomic bins. An outline of algorithm is depicted below.
 
 ![McDevol_algorithm](https://user-images.githubusercontent.com/29796007/235193887-ba72c9b6-dffa-4440-a88c-9fbd5e603378.png)
 
@@ -23,9 +23,9 @@ Now ready to use.
 
 (i) McDevol finds contigs belonging to the same genome using a novel distance measure, defined as the posterior probability that the count profiles of contigs are drawn from the same distribution.
 
-(ii) It applies a simple agglomerative algorithm to get high purity clusters followed by merging clusters of the same genomic origin through density-based clustering to the increase the completeness. This approach is much simpler and faster than an iterative medoid clustering and expectation-maximization algorithm used by MetaBat2 and MaxBin2, respectively. 
+(ii) It applies a simple agglomerative algorithm to get high-purity clusters followed by merging clusters of the same genomic origin through density-based clustering to increase completeness. This approach is much simpler and faster than an iterative medoid clustering and expectation-maximization algorithm used by MetaBat2 and MaxBin2, respectively. 
 
-(iii) It does not relying single-copy marker genes to refine clusters as done by other existing binners which results in over-estimation completeness and purity measures during CheckM evaluation.
+(iii) It does not rely on a set of single-copy marker genes to refine clusters as done by other existing binners which results in over-estimation completeness and purity measures during CheckM evaluation.
 
 Together, this tool is very fast, memory-efficient and less dependent on external tools.
 
@@ -56,15 +56,15 @@ note: input bamfiles should be unsorted (i.e., a default output of aligners and 
 `mcdevol.py -h or mcdevol.py`
 
 ## Recommended workflow
-We recommend single-sample assembly to obtain contigs as it minimizes constructing ambiguous assemblies for strain genomes. Perform mapping on a concatenated list of contigs for each sample and run McDevol. Bins from single-sample assembly input is highly redundant because the same genomic region can be represented by multiple contigs assembled independently from different samples. To remove redudancy, we recommend the following post-binning redundancy reduction steps.
+We recommend single-sample assembly to obtain contigs as it minimizes constructing ambiguous assemblies for strain genomes. Perform mapping on a concatenated list of contigs for each sample and run McDevol. Bins from single-sample assembly input are redundant because the same genomic region can be represented by multiple contigs assembled independently from different samples. To remove redundancy, we recommend the following post-binning redundancy reduction steps.
 
 ## Metagenome binning of contigs from sample-wise assembly
-When the contigs are assembled from each sample, perform post-binning assembly and clustering on _every bin_ produced by Mcdevol. For which, users are requested to have plass (https://github.com/soedinglab/plass) and MMseqs2 (https://github.com/soedinglab/MMseqs2) separately installed.
+When the contigs are assembled from each sample, perform post-binning assembly and clustering on _every bin_ produced by Mcdevol. For this, users are requested to have plass (https://github.com/soedinglab/plass) and MMseqs2 (https://github.com/soedinglab/MMseqs2) separately installed.
 
 ### 1) post-binning assembly
       plass nuclassemble bin<0..N>.fasta bin<0..N>_assembled.fasta tmp --max-seq-len 10000000 --keep-target false --contig-output-mode 0 --min-seq-id 0.990 --chop-cycle false
       
-### 2) redundancy reduction
+### 2) sequence clustering
       mmseqs easy-linclust bin<0..N>.fasta output<0..N> tmp --min-seq-id 0.970 --min-aln-len 200 --cluster-mode 2 --shuffle 0 -c 0.99 --cov-mode 1 --max-seq-len 10000000
 
 <!---## Custome installation with bamtools pre-installed
