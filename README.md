@@ -65,7 +65,7 @@ note: input bamfiles should be unsorted (i.e., a default output of aligners and 
 We recommend single-sample assembly to obtain contigs as it minimizes constructing ambiguous assemblies for strain genomes. Perform mapping on a concatenated list of contigs for each sample and run McDevol. Bins from single-sample assembly input are redundant because the same genomic region can be represented by multiple contigs assembled independently from different samples. To remove redundancy, we recommend the following post-binning redundancy reduction steps.
 
 ## Metagenome binning of contigs from sample-wise assembly
-When the contigs are assembled from each sample, perform post-binning assembly and clustering on _every bin_ produced by Mcdevol. For this, users are requested to have plass (https://github.com/soedinglab/plass) and MMseqs2 (https://github.com/soedinglab/MMseqs2) separately installed.
+When the contigs are assembled from each sample, perform post-binning assembly and clustering on _every bin_ produced by McDevol. For this, users are requested to have plass (https://github.com/soedinglab/plass) and MMseqs2 (https://github.com/soedinglab/MMseqs2) separately installed.
 
 ### 1) post-binning assembly
       plass nuclassemble bin<0..N>.fasta bin<0..N>_assembled.fasta tmp --max-seq-len 10000000 --keep-target false --contig-output-mode 0 --min-seq-id 0.990 --chop-cycle false
