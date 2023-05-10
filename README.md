@@ -17,6 +17,9 @@ McDevol uses a novel Bayesian statistics-based distance measure on read counts a
       export PATH=$PATH:<path to McDevol>
       mcdevol.py -i test -c test/contigs.fasta -o out # testing
 Now ready to use.
+
+In linux cluster, an easier way is to create a virtual environment (using either `venv` or `conda`) and use it for installing and run the tool.
+
 <!--- conda create -n mcdevol_env python numpy scipy pandas alive_progress
       conda activate mcdevol_env --->
 ## Advantages
