@@ -40,7 +40,7 @@ Together, it is very fast, memory and less dependence.
 
 `-c | --contigs` fasta file of contig sequenes assembled from all samples (sample-wise assembly)
 
-note: bamfiles should be unsorted (i.e., alignments are arranged by read names as provided by aligners by default)
+note: bamfiles should be unsorted (i.e., default output of aligners and alignments are arranged by read names). As of now, mcdevol supports bamfiles from `bwa-mem` and `bowtie2`.
 
 ## Additional options
 
@@ -54,8 +54,11 @@ note: bamfiles should be unsorted (i.e., alignments are arranged by read names a
 
 
 ## Help
-`python3 mcdevol.py -h or python3 mcdevol.py`
+`mcdevol.py -h or mcdevol.py`
+test run: `mcdevol -i test -c test/contigs.fasta -o out`
 
+## Recommended workflow
+We recommend single-sample assembly to obtain contigs as it minimizes constructing ambiguous assemblies for strain genomes. Perform mapping on a concatenated list of contigs for each sample and run mcdevol. Bins from single-sample assembly is highly redundant because the same genomic region is represented by multiple contigs assembled independently from different samples. To remove redudancy, we recommend the following post-binning redundancy reduction steps.
 
 ## Metagenome binning of contigs from sample-wise assembly
 When the contigs are assembled for every sample, we suggested to apply reduction reduction for _every bin_ resulting from Mcdevol using the following recommended steps. For which, users are requested to have plass (https://github.com/soedinglab/plass) and MMseqs2 (https://github.com/soedinglab/MMseqs2) already installed.
