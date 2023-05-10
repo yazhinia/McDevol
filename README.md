@@ -18,6 +18,9 @@ McDevol uses a novel Bayesian statistics-based distance measure on read counts a
       mcdevol.py -i test -c test/contigs.fasta -o out # testing
 Now ready to use.
 
+### system setup
+It requires a 64-bit Linux system with AVX2 instruction set. Check using `uname -a | grep x86_64` command in Linux terminal. In addition, cmake>=3.21 and gcc>=10.2 should be available.
+
 In linux cluster, an easier way is to create a virtual environment (using either `venv` or `conda`) and use it for installing and run the tool.
 
 <!--- conda create -n mcdevol_env python numpy scipy pandas alive_progress
