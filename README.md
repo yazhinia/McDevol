@@ -55,7 +55,9 @@ note: bamfiles should be unsorted (i.e., default output of aligners and alignmen
 
 ## Help
 `mcdevol.py -h or mcdevol.py`
-test run: `mcdevol -i test -c test/contigs.fasta -o out`
+
+test run
+`mcdevol.py -i test -c test/contigs.fasta -o out`
 
 ## Recommended workflow
 We recommend single-sample assembly to obtain contigs as it minimizes constructing ambiguous assemblies for strain genomes. Perform mapping on a concatenated list of contigs for each sample and run mcdevol. Bins from single-sample assembly is highly redundant because the same genomic region is represented by multiple contigs assembled independently from different samples. To remove redudancy, we recommend the following post-binning redundancy reduction steps.
