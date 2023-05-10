@@ -36,7 +36,7 @@ Together, it is very fast, memory and less dependence.
 ## Command line
 `mcdevol.py -i bamfiles -c contig.fasta`
 
-`-i | --input` directory in which all bamfiles present
+`-i | --input` directory in which all bamfiles are present
 
 `-c | --contigs` fasta file of contig sequenes assembled from all samples (sample-wise assembly)
 
