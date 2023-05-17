@@ -41,19 +41,19 @@ Together, this tool is very fast, memory-efficient and less dependent on externa
 ## Command line
 `mcdevol.py -i bamfiles -c contig.fasta`
 
-`-i | --input` directory in which all bamfiles are present
+`-i, --input` directory in which all bamfiles are present
 
-`-c | --contigs` a fasta file for contig sequences (single-sample or co-assembly)
+`-c, --contigs` a fasta file for contig sequences (single-sample or co-assembly)
 
 note: input bamfiles should be unsorted (i.e., a default output of aligners and alignments are arranged by read names). As of now, McDevol supports bamfiles from `bwa-mem` and `bowtie2` tools.
 
 ## Additional options
 
-`-l | --minlength` minimum length of contigs to be considered for binning [default 1000kb]
+`-l, --minlength` minimum length of contigs to be considered for binning [default 1000kb]
 
-`-o | --output` the name of output file [default, 'mcdevol']
+`-o, --output` the name of output file [default, 'mcdevol']
 
-`-d | --outdir` output directory [default, working directory]
+`-d, --outdir` output directory [default, working directory]
 
 `--fasta` output fasta file for each bin
 
