@@ -6,7 +6,7 @@ import gzip
 import version
 import argparse
 from datetime import datetime
-from src.contigs_binning import binning
+from src.contigs_binning_current import binning
 
 parentdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(parentdir)
@@ -89,7 +89,11 @@ def main():
 	print("output directory:\t\t", args.outdir)
 	print("temporary folder:\t\t", args.input + '/tmp','\n')
 
+	args.logfile = open(args.input + '/logfile.txt', 'w')
+
 	binning(args)
+
+	args.logfile.close()
 
 if __name__ == "__main__":
 	main()
