@@ -21,7 +21,7 @@ It requires a 64-bit Linux system with AVX2 instruction set. Check using `uname 
       
 Now ready to use.
 
-In linux cluster, an easier way is to work with a virtual environment (create using either `venv` or `conda`) for installing and running the tool.
+In linux cluster,`cmake` and `gcc` modules should be pre-loaded. Also, for easy installation and use, it is recommened to work in a virtual environment (create using either `venv` or `conda`). 
 
 <!--- conda create -n mcdevol_env python numpy scipy pandas alive_progress
       conda activate mcdevol_env --->
