@@ -7,7 +7,8 @@ Metagenome binning relies on the following underlying basis (i) contigs originat
 ## Algorithm
 McDevol uses a novel Bayesian statistics-based distance measure on read counts and k-mer profiles to bin metagenomic contigs. The method has two steps, (i) initial agglomerative clustering using bayesian distance and (ii) density-based clustering using summed read and k-mer count profiles to merge clusters of possibly the same genome into components to provide final genomic bins. An outline of algorithm is depicted below.
 
-![McDevol_algorithm](https://github.com/yazhinia/McDevol/assets/29796007/a76e2ce0-f6fb-4a9c-a70f-5e551f5f0e02)
+![McDevol_algorithm](https://github.com/yazhinia/McDevol/assets/29796007/8070e87f-b772-473e-87a8-1762136cbebd)
+
 
 ## Installation
 It requires a 64-bit Linux system with AVX2 instruction set. Check using `uname -a | grep x86_64` command in Linux terminal. In addition, cmake>=3.21 and gcc>=10.2 should be available.
