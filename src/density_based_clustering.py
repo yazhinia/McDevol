@@ -21,6 +21,8 @@ def cluster_by_centroids(cluster_parameters):
     dirichlet_prior_perkmers = cluster_parameters[9].flatten()
     d0 = cluster_parameters[10]
     tmp_dir = cluster_parameters[11]
+    q_read = cluster_parameters[12]
+    q_kmer = cluster_parameters[13]
     members = []
     cluster_curr = 0
     cluster_assigned = np.zeros(total_contigs, dtype=int) - 1
@@ -41,7 +43,7 @@ def cluster_by_centroids(cluster_parameters):
         for c in iterate_ind:
         
             if cluster_assigned[c] < 0 :
-                distance = compute_dist(c, read_counts, kmer_counts, Rc_reads, Rc_kmers, dirichlet_prior, dirichlet_prior_persamples, dirichlet_prior_kmers, dirichlet_prior_perkmers, np.exp(-8.0), np.exp(-8.0))
+                distance = compute_dist(c, read_counts, kmer_counts, Rc_reads, Rc_kmers, dirichlet_prior, dirichlet_prior_persamples, dirichlet_prior_kmers, dirichlet_prior_perkmers, q_read, q_kmer)
                 clustercentroids_list.append(c)
 
                 inds = np.nonzero(distance < dist_to_assigned)[0] # " there could be empty list "
@@ -103,13 +105,15 @@ def density_based_clustering(cluster_parameters, cluster_centroids_read, cluster
     dirichlet_prior_perkmers = cluster_parameters[9].flatten()
     Rc_reads = np.sum(cluster_centroids_read,axis=1)
     Rc_kmers = cluster_centroids_kmer.reshape(-1,64,4).sum(axis=2)
+    q_read = cluster_parameters[12]
+    q_kmer = cluster_parameters[13]
     density = np.zeros(K, dtype=int)
     d1 = 1.0
     nearest = np.zeros(K, dtype=int)
     separation_dist = np.zeros(K) + 1e30
     
     for k in range(K):
-        distance = compute_dist(k, cluster_centroids_read, cluster_centroids_kmer, Rc_reads, Rc_kmers, dirichlet_prior, dirichlet_prior_persamples, dirichlet_prior_kmers, dirichlet_prior_perkmers, np.exp(-8.0), np.exp(-8.0))
+        distance = compute_dist(k, cluster_centroids_read, cluster_centroids_kmer, Rc_reads, Rc_kmers, dirichlet_prior, dirichlet_prior_persamples, dirichlet_prior_kmers, dirichlet_prior_perkmers, q_read, q_kmer)
         inds = np.nonzero(distance < d1)[0]
         
         if distance[k] > d1:
