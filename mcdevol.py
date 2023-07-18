@@ -2,14 +2,18 @@
 
 import os
 import sys
+
+parentdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(parentdir)
+
 import gzip
 import version
 import argparse
 from datetime import datetime
-from src.contigs_binning_current import binning
-
-parentdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(parentdir)
+# from src.contigs_binning_current import binning
+# from src.contigs_binning_onlyreads import binning
+# from src.contigs_binning_onlykmers import binning
+from src.contigs_binning import binning
 
 def main():
 	""" McDevol accurately reconstructs genomic bins from metagenomic samples using contig abundance and k-mer profiles"""
@@ -69,17 +73,20 @@ def main():
 		args.outdir = args.outdir + '/'
 			
 	if args.output is None:
-		args.output = "mcdevol" #datetime.today().strftime('%Y-%m-%d')
+		args.output = "mcdevol" # datetime.today().strftime('%Y-%m-%d')
 
 		if not os.path.exists(args.outdir):
 			os.makedirs(args.outdir)
 		else:
 			pass
 
-	if not os.path.exists(args.input + '/tmp'):
-		os.makedirs(args.input + '/tmp')
+	if not os.path.exists(args.outdir + '/tmp'):
+		os.makedirs(args.outdir + '/tmp')
+	
 	else:
 		pass
+	
+	args.tmp = args.outdir + 'tmp/'
 
 	print("McDevol: metagenome binning started...\n")
 	print("input directory:\t\t", args.input)
@@ -87,9 +94,9 @@ def main():
 	print("sequence identity cutoff:\t", args.seq_identity, 'bp')
 	print("output name:\t\t\t", args.output)
 	print("output directory:\t\t", args.outdir)
-	print("temporary folder:\t\t", args.input + '/tmp','\n')
+	print("temporary folder:\t\t", args.tmp,'\n')
 
-	args.logfile = open(args.input + '/logfile.txt', 'w')
+	args.logfile = open(args.outdir + '/logfile.txt', 'w')
 
 	binning(args)
 
