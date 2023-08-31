@@ -2,8 +2,8 @@
 
 # compile cpp codes for kmer frequency calculation and printing fasta sequence files for binned contigs
 cd util
-g++ -o kmerfreq kmerfreq.cpp
-g++ -o get_sequence_bybin get_sequence_bybin.cpp
+g++ -o kmerfreq kmerfreq.cpp -O3
+g++ -o get_sequence_bybin get_sequence_bybin.cpp -O3
 # end
 
 # compile and build cpp pybind11 module for getting fractional read counts from bamfiles
@@ -15,7 +15,7 @@ if [ -d "build" ]; then
 rm -rf build
 fi
 mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
+cmake -DCMAKE_BUILD_TYPE=Release -DPYBIND11_FINDPYTHON=ON ..
 make && cd ../ && cp bam2counts.cpython* ../ && cd ../
 fi
 # end
@@ -30,7 +30,7 @@ if [ -d "build" ]; then
 rm -rf build
 fi
 mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
+cmake -DCMAKE_BUILD_TYPE=Release -DPYBIND11_FINDPYTHON=ON ..
 make && cd ../ && cp bayesian_distance.cpython* ../ && cd ../
 fi
 echo "completed building bayesian distance module"
