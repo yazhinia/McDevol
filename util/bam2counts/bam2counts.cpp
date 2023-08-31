@@ -24,7 +24,7 @@ struct al_data{
     float sequence_identity;
 };
 
-std::pair<float, float> get_seqid_aligncov(BamTools::BamAlignment al,unsigned int read_length) {
+std::pair<float, float> get_seqid_aligncov(BamTools::BamAlignment al, unsigned int read_length) {
     if (al.CigarData.size() <= 2 && al.CigarData.size() != 0 && al.RefID != -1) {
         unsigned int matches = 0;
         unsigned int mismatches = 0;
@@ -39,6 +39,7 @@ std::pair<float, float> get_seqid_aligncov(BamTools::BamAlignment al,unsigned in
             start = al.CigarData[0].Length;
         }
         unsigned int end = al.Length;
+        // std::cout << al.Length << " length\n";
         if ((al.CigarData.size() > 1) && al.CigarData[1].Type == 'S') {
             end -= al.CigarData[1].Length;
         }
@@ -71,11 +72,13 @@ std::pair<float, float> get_seqid_aligncov(BamTools::BamAlignment al,unsigned in
         }
 
         float seq_id, alignment_coverage;
-        
+
         seq_id = (float)matches/(float)(matches+mismatches)*100;
         alignment_coverage = (float)alignment_length / (float)read_length * 100;
+        // alignment_coverage = (float)alignment_length / (float)al.Length * 100; // account for variable read length
         return std::make_pair(seq_id, alignment_coverage);
     }
+
     else {
         return std::make_pair(0.0f,0.0f);
     }
@@ -189,7 +192,7 @@ void obtain_readcounts(std::string bamfile, const int flag, std::string input_di
             if (check_contig != umap.end()) {
                 std::pair<float, float> alignment_stat;
                 alignment_stat = get_seqid_aligncov(aln, read_length);
-                
+
                 if (alignment_stat.second >= 70.0f) { // filter the alignment by sequence identity (97%) and read coverage (70%)
                     
                     unsigned int pair_flag = 0;
