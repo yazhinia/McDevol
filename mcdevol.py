@@ -75,16 +75,17 @@ def main():
 	if args.output is None:
 		args.output = "mcdevol" # datetime.today().strftime('%Y-%m-%d')
 
-		if not os.path.exists(args.outdir):
-			os.makedirs(args.outdir)
-		else:
-			pass
 
-	if not os.path.exists(args.outdir + '/tmp'):
-		os.makedirs(args.outdir + '/tmp')
-	
-	else:
+	try:
+		os.makedirs(args.outdir)
+	except:
 		pass
+	
+	try:
+		os.makedirs(args.outdir + '/tmp')
+	except:
+		pass
+	
 	
 	args.tmp = args.outdir + 'tmp/'
 
