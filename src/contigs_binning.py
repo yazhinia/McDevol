@@ -39,7 +39,7 @@ def binning(args):
     global input_dir, tmp_dir, minlength, ncpu, sequence_identity, q_read, q_kmer
 
     input_dir = args.input
-    tmp_dir = args.input + '/tmp/'
+    tmp_dir = args.tmp
     minlength = args.minlength
     ncpu = args.ncores
     sequence_identity = args.seq_identity
