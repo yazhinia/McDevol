@@ -1,13 +1,15 @@
+#include<bits/stdc++.h>
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <cstring>
 #include <chrono>
+#include <algorithm>
 #include <unordered_map>
 
 
-bool condition_header(std::string &line) {
+bool condition_header(std::ifstream &fasta, std::string &line) {
     if (line[0] == '>') {
         return true;
     }
@@ -16,12 +18,24 @@ bool condition_header(std::string &line) {
     }
 }
 
-void get_complete_sequence(std::ifstream &fasta, std::string &line, std::string &sequence) {
-    
-    fasta >> line;
-    while (!condition_header(line) && !fasta.eof()) {
-        sequence.append(line);
+bool line_check(std::ifstream &fasta, std::string &line) {
+    // if (std::any_of(line.begin(), line.end(), ::isdigit)) {
+    if(line.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") != std::string::npos) {
         fasta >> line;
+        return false;
+    }
+    else {
+        return true;
+    }
+}
+
+void get_complete_sequence(std::ifstream &fasta, std::string &line, std::string &sequence) {
+    fasta >> line;
+    while (!condition_header(fasta, line) && !fasta.eof()) {
+        if (line_check(fasta, line)) {
+            sequence.append(line);
+            fasta >> line;
+        }
     }
 }
 
@@ -30,6 +44,7 @@ int main(int argc, char *argv[]) {
 
     if(argc != 6 || strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
         std::cout << "input missing !\n";
+        std::cout << "usage: ./get_sequence_bybins tmp_dir bin_ids contigs output outdir\n";
         return EXIT_SUCCESS;
     }
 
@@ -69,11 +84,12 @@ int main(int argc, char *argv[]) {
         }
 
         fastaFile >> line;
-        while (condition_header(line)) {
+        while (condition_header(fastaFile, line)) {
             sequence = "";
             auto range = bins_ids.equal_range(line.substr(1,-1));
             if (range.first != range.second) {
                 get_complete_sequence(fastaFile, line, sequence);
+                
                 for (auto it = range.first; it != range.second; ++it) {
 
                     std::string out = std::to_string(it->second);
@@ -91,7 +107,7 @@ int main(int argc, char *argv[]) {
             }
             else {
                 fastaFile >> line;
-                    while (!condition_header(line) && !fastaFile.eof()) {
+                while (!condition_header(fastaFile, line) && !fastaFile.eof()) {
                     fastaFile >> line;
                 }
             }
