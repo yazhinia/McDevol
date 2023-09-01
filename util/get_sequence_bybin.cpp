@@ -19,7 +19,6 @@ bool condition_header(std::ifstream &fasta, std::string &line) {
 }
 
 bool line_check(std::ifstream &fasta, std::string &line) {
-    // if (std::any_of(line.begin(), line.end(), ::isdigit)) {
     if(line.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") != std::string::npos) {
         fasta >> line;
         return false;
