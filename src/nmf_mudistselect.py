@@ -25,8 +25,9 @@ import src.distance_calculations as dist
 
 
 
-global epsilon 
+global epsilon, convergence_criterion
 epsilon = 1e-10
+convergence_criterion = 1e-10
 
 def log_gamma(x):
     return log_gamma_avx2(x)
@@ -99,21 +100,72 @@ def entropy_maxval(_lambda):
     return entropy_cal
 
 
+def postnmf_binclustering(pseudocounts, bin_totlength, dirichlet_prior, dirichlet_prior_persamples):
+    
+    Rb_totalcount = pseudocounts.sum(axis=1)
+    total_bins = len(pseudocounts)
+    q_read = np.exp(-7.0)
+    d0 = 0.001
+    members = []
+    cluster_curr = 0
+    cluster_assigned = np.zeros(total_bins, dtype=int) - 1
+    cluster_assigned[np.nonzero((np.array(bin_totlength)<100000)|(np.array(bin_totlength)>10000000))[0]] = -2
+    dist_to_assigned = np.zeros(total_bins, dtype=float) + d0
+
+    for c in range(len(pseudocounts)):
+        if cluster_assigned[c] == -1:
+            distance = Bayesian_distance(c, pseudocounts, Rb_totalcount, dirichlet_prior, dirichlet_prior_persamples, q_read)
+
+            # print(Rb_totalcount[c], distance[c], 'distance and distance_c')
+            inds = np.nonzero(distance < d0)[0]
+            inds = np.delete(inds, np.nonzero(cluster_assigned[inds]==-2)[0])
+
+            if len(inds) > 0 :
+
+                if distance[c] > d0:
+                    inds = np.append(inds, c)
+
+                dist_to_assigned[inds] = distance[inds]
+                cluster_assigned[inds] = cluster_curr
+
+                cluster_curr += 1
+    
+    for k in range(cluster_curr):
+        if len(np.nonzero(cluster_assigned==k)[0]) > 0:
+            members.append(np.nonzero(cluster_assigned==k)[0])
+
+    for c in np.nonzero(cluster_assigned < 0)[0]:
+        cluster_assigned[c] = cluster_curr
+        members.append([c])
+        cluster_curr += 1
+    print(cluster_curr)
+
+    return members, cluster_assigned
+
 
 """ Multiplicative Updates """
 
 def multiplicative_updates(W, Z, X, n, b):
-
     log_likelihood = []
 
     for i in range(n):
         X_by_mean = X / (np.matmul(Z.T, W) + epsilon)
         Z = Z * (np.matmul(W, X_by_mean.T) / W.sum(axis=1)[:,None])
         X_by_mean = X / (np.matmul(Z.T, W) + epsilon)
-        W = W * (np.matmul(Z, X_by_mean) / Z.sum(axis=1)[:,None]) 
+        W = W * (np.matmul(Z, X_by_mean) / Z.sum(axis=1)[:,None])
         log_likelihood.append(maximize_function(W, Z, X))
+        
+        if i == 1:
+            ll_init = maximize_function(W, Z, X)
+            previous_ll = ll_init
 
-    np.save('/big/work/mcdevol/cami2_datasets/marine/pooled_assembly/minimap_process/mcdevol_run/autoencoder/reads_andcorrkmers_twoaug/nmf_investigate/ll_array_'+str(n)+'_'+str(b)+'.npy', log_likelihood)
+        if convergence_criterion > 0 and i % 5000 == 0 and i > 1:
+            ll = maximize_function(W, Z, X)
+
+            if (previous_ll - ll) / ll_init < convergence_criterion:
+                break
+            previous_ll = ll
+    np.save('/big/work/mcdevol/cami2_datasets/strain_madness/binning/ll_array_'+str(n)+'_'+str(b)+'.npy', log_likelihood)
 
     AIC_val = calc_aic(W, Z, X)
 
@@ -151,24 +203,23 @@ def get_WZ(U, S, V, read_counts_k, f):
 
     return W, Z
 
-
 def assign(bval, bin_assigned, optimized, bin_index, k , num_C, contigs_length_k):
     
     if bval == 1:
         bin_assigned.append(np.vstack((k, np.array([bin_index] * num_C))))
         bin_index += 1
-            
+        remove_W = np.array([])
+        binwise_Zbc = list(optimized["Z1"])
     else:
         Z_opt = optimized["Z"+str(bval)]
-        bin_indices, _ = assignment(Z_opt, contigs_length_k, 0)
+        bin_indices, remove_W, binwise_Zbc = assignment(Z_opt, contigs_length_k, 0)
         bin_indices += bin_index
         bin_assigned.append(np.vstack((k, bin_indices)))
         bin_index += len(set(bin_indices))
-    
-    return bin_index, bin_assigned
+   
+    return bin_index, bin_assigned, remove_W, binwise_Zbc
 
-
-def nmf_deconvolution(read_counts, clusters, contigs_length, contig_names, dirichlet_prior, dirichlet_prior_persamples):
+def nmf_deconvolution(read_counts, clusters, contigs_length, dirichlet_prior, dirichlet_prior_persamples):
     counter = 0
     bin_index_ent = 1
     bin_index_aic = 1
@@ -179,6 +230,8 @@ def nmf_deconvolution(read_counts, clusters, contigs_length, contig_names, diric
     bin_assigned_ll = []
     bin_assigned_md = []
     ll_values = []
+    pseudocounts = []
+    Z_matrices = []
     q = np.exp(-7.0)
 
     for k in clusters:
@@ -186,26 +239,29 @@ def nmf_deconvolution(read_counts, clusters, contigs_length, contig_names, diric
         if len(k) > 1:
             num_C = len(k)            
             read_counts_k = read_counts[k]
-            read_counts_k = np.delete(read_counts_k, np.nonzero(read_counts_k.sum(axis=0)== 0.0)[0], 1)
+            sampleinds_zero_count = np.nonzero(read_counts_k.sum(axis=0)== 0.0)[0]
+            read_counts_k = np.delete(read_counts_k, sampleinds_zero_count, 1)
             Rc_k = read_counts_k.sum(axis=1)
 
             contigs_length_k = contigs_length[k]
-            optimized = {}            
+            optimized = {}
             AIC_values = []
             ll_values = []
             likelihood_differences = []
 
             #### b=1 ####
-            W = read_counts_k.sum(axis=0)[:,None].T
-            Z = initialize_Z(W, read_counts_k)
-            W_opt, Z_opt, AIC_val, ll = multiplicative_updates(W, Z, read_counts_k, 2, 1)
-            AIC_values.append(AIC_val)
-            ll_values.append(ll)
-            mean = np.matmul(W_opt.T, Z_opt) + epsilon
-            optimized["Z"+str(1)] = Z_opt
-            expected_likelihood =  - np.where(mean<=5, entropy_minival(mean), entropy_maxval(mean))
-            observed_likelihood = poisson_mean(read_counts_k, mean)
-            likelihood_differences.append(np.mean(observed_likelihood - expected_likelihood))
+            # W = read_counts_k.sum(axis=0)[:,None].T
+            # print(W, 'W column')
+            # Z = initialize_Z(W, read_counts_k)
+            # W_opt, Z_opt, AIC_val, ll = multiplicative_updates(W, Z, read_counts_k, 2, 1)
+            # AIC_values.append(AIC_val)
+            # ll_values.append(ll)
+            # mean = np.matmul(W_opt.T, Z_opt) + epsilon
+            # optimized["Z"+str(1)] = Z_opt
+            # optimized["W"+str(1)] = W_opt
+            # expected_likelihood =  - np.where(mean<=5, entropy_minival(mean), entropy_maxval(mean))
+            # observed_likelihood = poisson_mean(read_counts_k, mean)
+            # likelihood_differences.append(np.mean(observed_likelihood - expected_likelihood))
             #############
 
             #### b=2 ####
@@ -213,18 +269,31 @@ def nmf_deconvolution(read_counts, clusters, contigs_length, contig_names, diric
             c1 = np.argmax(c1_distance)
             c2_distance = Bayesian_distance(c1, read_counts_k, Rc_k, dirichlet_prior, dirichlet_prior_persamples, q)
             c2 = np.argmax(c2_distance)
-            print(k[[c1,c2]], 'c1 and c2')
             if (c1 == c2):
-                print("c1 and c2 are same")
                 c2 = np.argsort(c2_distance)[-2]
         
+            ### test b=1###
+            W = read_counts_k[c1][:,None].T
+            Z = initialize_Z(W, read_counts_k)
+            W_opt, Z_opt, AIC_val, ll = multiplicative_updates(W, Z, read_counts_k, 2, 1)
+            AIC_values.append(AIC_val)
+            ll_values.append(ll)
+            mean = np.matmul(W_opt.T, Z_opt) + epsilon
+            optimized["Z"+str(1)] = Z_opt
+            optimized["W"+str(1)] = W_opt
+            expected_likelihood =  - np.where(mean<=5, entropy_minival(mean), entropy_maxval(mean))
+            observed_likelihood = poisson_mean(read_counts_k, mean)
+            likelihood_differences.append(np.mean(observed_likelihood - expected_likelihood))
+            #############
+
             W =read_counts_k[[c1,c2]]
             Z = initialize_Z(W, read_counts_k)
-            W_opt, Z_opt, AIC_val, ll = multiplicative_updates(W, Z, read_counts_k, 10000, 2)
+            W_opt, Z_opt, AIC_val, ll = multiplicative_updates(W, Z, read_counts_k, 50000, 2)
             AIC_values.append(AIC_val)
             ll_values.append(ll)
             mean = np.matmul(W_opt.T, Z_opt) + epsilon
             optimized["Z"+str(2)] = Z_opt
+            optimized["W"+str(2)] = W_opt
             expected_likelihood = - np.where(mean<=5, entropy_minival(mean), entropy_maxval(mean))
             observed_likelihood = poisson_mean(read_counts_k, mean)
             likelihood_differences.append(np.mean(observed_likelihood - expected_likelihood))
@@ -232,12 +301,12 @@ def nmf_deconvolution(read_counts, clusters, contigs_length, contig_names, diric
             lambda_value = 2 * (ll_values[1] - ll_values[0])
             p_value = chi2.sf(np.array(lambda_value), read_counts_k.shape[1] + num_C - 2*2)
             #############
-            print(p_value, 'p-value for b= 1')
+
             inds = [c1,c2]
 
             if p_value < 0.01:
                 
-                for f in range(3,10,1):
+                for f in range(3,20,1):
                     ck_ind = np.argmax(likelihood_difference)
                     if ck_ind in inds:
                         bval = f-1
@@ -255,19 +324,19 @@ def nmf_deconvolution(read_counts, clusters, contigs_length, contig_names, diric
 
                     W = read_counts_k[inds]
                     Z = initialize_Z(W, read_counts_k)
-                    W_opt, Z_opt, AIC_val, ll = multiplicative_updates(W, Z, read_counts_k, 10000, f)
+                    W_opt, Z_opt, AIC_val, ll = multiplicative_updates(W, Z, read_counts_k, 50000, f)
                     AIC_values.append(AIC_val)
                     ll_values.append(ll)
                     mean = np.matmul(W_opt.T, Z_opt) + epsilon
                     optimized["Z"+str(f)] = Z_opt
+                    optimized["W"+str(f)] = W_opt
                     expected_likelihood = - np.where(mean<=5, entropy_minival(mean), entropy_maxval(mean))
                     observed_likelihood = poisson_mean(read_counts_k, mean)
                     likelihood_differences.append(np.mean(observed_likelihood - expected_likelihood))
                     likelihood_difference = (observed_likelihood - expected_likelihood).sum(axis=0) / read_counts_k.shape[1]
                     lambda_value = 2 * (ll_values[-1] - ll_values[-2])
                     p_value = chi2.sf(np.array(lambda_value), read_counts_k.shape[1] + num_C - 2*f)
-                    print(p_value, 'p value for b=', f, flush=True)  
-                    
+                    print(counter, p_value, 'p value')
                     if p_value > 0.01:
                         bval = f-1
                         break
@@ -276,141 +345,73 @@ def nmf_deconvolution(read_counts, clusters, contigs_length, contig_names, diric
             else:
                 bval = 1
 
-            bval_md = stats.mode([np.argmin(np.abs(likelihood_differences)-0)+1, np.argmax(AIC_values)+1, bval], axis=None, keepdims=True)[0][0]
-            print(inds, k[inds], 'inds')
-            print(counter, np.argmin(np.abs(likelihood_differences)-0)+1, 'entropy b-value')
-            print(counter, np.argmax(AIC_values)+1, 'AIC b-value')
-            print(counter, bval, 'log-likelihood b-bvalue')
-            print(counter, bval_md, 'mode b-bvalue')
-            bin_index_ent, bin_assigned_ent = assign(np.argmin(np.abs(likelihood_differences)-0)+1, bin_assigned_ent, optimized, bin_index_ent, k, num_C, contigs_length_k)
-            bin_index_aic, bin_assigned_aic = assign(np.argmax(AIC_values)+1, bin_assigned_aic, optimized, bin_index_aic, k, num_C, contigs_length_k)
-            bin_index_ll, bin_assigned_ll = assign(bval, bin_assigned_ll, optimized, bin_index_ll, k, num_C, contigs_length_k)
-            bin_index_md, bin_assigned_md = assign(bval_md, bin_assigned_md, optimized, bin_index_md, k, num_C, contigs_length_k)
-        
-        else:
-            bin_assigned_ent.append(np.vstack((k, np.array([bin_index_ent] * len(k)))))
-            bin_assigned_aic.append(np.vstack((k, np.array([bin_index_aic] * len(k)))))
-            bin_assigned_ll.append(np.vstack((k, np.array([bin_index_ll] * len(k)))))
-            bin_assigned_md.append(np.vstack((k, np.array([bin_index_md] * len(k)))))
-            bin_index_ent += 1
-            bin_index_aic += 1
-            bin_index_ll += 1
-            bin_index_md += 1
+            # bval_md = stats.mode([np.argmin(np.abs(likelihood_differences)-0)+1, np.argmax(AIC_values)+1, bval], axis=None, keepdims=True)[0][0]
+            bval_final = np.argmax(AIC_values)+1
 
+            # print(inds, k[inds], 'inds')
+            # print(counter, np.argmin(np.abs(likelihood_differences)-0)+1, 'entropy b-value')
+            # print(counter, np.argmax(AIC_values)+1, 'AIC b-value')
+            # print(counter, bval, 'log-likelihood b-bvalue')
+            # print(counter, bval_md, 'mode b-bvalue')
+            
+            # bin_index_ent, bin_assigned_ent, remove_W = assign(np.argmin(np.abs(likelihood_differences)-0)+1, bin_assigned_ent, optimized, bin_index_ent, k, num_C, contigs_length_k)
+            bin_index_aic, bin_assigned_aic, remove_W, binwise_Zbc = assign(np.argmax(AIC_values)+1, bin_assigned_aic, optimized, bin_index_aic, k, num_C, contigs_length_k)
+            # bin_index_ll, bin_assigned_ll, remove_W = assign(bval, bin_assigned_ll, optimized, bin_index_ll, k, num_C, contigs_length_k)
+            # bin_index_md, bin_assigned_md, remove_W = assign(bval_md, bin_assigned_md, optimized, bin_index_md, k, num_C, contigs_length_k)
+            
+            Wnb = optimized["W"+str(bval_final)]
+    
+            if not remove_W.size == 0:
+                Wnb = np.delete(Wnb, remove_W, axis=0)
+
+            if len(sampleinds_zero_count):
+                for ind in sampleinds_zero_count:
+                    Wnb = np.insert(Wnb, ind ,[0], axis=1)
+            
+            Z_matrices.extend(binwise_Zbc)
+            binwise_WZ = [(w * z.sum()) for w, z in zip(Wnb, binwise_Zbc)]  
+            pseudocounts.extend(binwise_WZ)
+
+        else:
+            # bin_assigned_ent.append(np.vstack((k, np.array([bin_index_ent] * len(k)))))
+            bin_assigned_aic.append(np.vstack((k, np.array([bin_index_aic] * len(k)))))
+            # bin_assigned_ll.append(np.vstack((k, np.array([bin_index_ll] * len(k)))))
+            # bin_assigned_md.append(np.vstack((k, np.array([bin_index_md] * len(k)))))
+            # bin_index_ent += 1
+            bin_index_aic += 1
+            # bin_index_ll += 1
+            # bin_index_md += 1
+            pseudocounts.extend(read_counts[k])
+            Z_matrices.append(np.array([1]))
+
+        if len(pseudocounts)+1 != bin_index_aic:
+            print('different')
+            breakpoint()
+        
         counter += 1
 
-    
-    bin_assigned_ent = np.concatenate(bin_assigned_ent, axis=1).T
+
+
+    # bin_assigned_ent = np.concatenate(bin_assigned_ent, axis=1).T
     bin_assigned_aic = np.concatenate(bin_assigned_aic, axis=1).T
-    bin_assigned_ll = np.concatenate(bin_assigned_ll, axis=1).T
-    bin_assigned_md = np.concatenate(bin_assigned_md, axis=1).T
+    # bin_assigned_ll = np.concatenate(bin_assigned_ll, axis=1).T
+    # bin_assigned_md = np.concatenate(bin_assigned_md, axis=1).T
 
-    return bin_assigned_ent, bin_assigned_aic, bin_assigned_ll, bin_assigned_md
-        
-    #         for f in range(2, range_limit):
-                
-    #             ##### SVD initialized #######
-    #             S_f = np.diag(S[:f])
-               
-    #             if np.diag(S_f)[-1] != 0.0:
-    #                 print('entered f iteration')
-    #                 U_f = U[:,:f]
-    #                 Vt_f = Vt[:f, :]
-                    
-    #                 W, Z = get_WZ(U_f, S_f, Vt_f, read_counts_k, f)
+    pseudocounts = np.array(pseudocounts)
+    contigids_inbins = np.array(list(pd.DataFrame(bin_assigned_aic).groupby(1)[0].apply(list)), dtype=object)
 
-    #                 W_opt, Z_opt, AIC_val, ll = multiplicative_updates(W, Z, read_counts_k, 500, f)
-    #                 ##############################
-
-
-    #                 # ###### sklearn approach ######
-    #                 # NMF_model = NMF(n_components=f, init='nndsvdar', solver='mu', beta_loss='kullback-leibler', max_iter=10000)
-    #                 # W_opt = NMF_model.fit_transform(read_counts_k.T).T
-    #                 # Z_opt = NMF_model.components_
-    #                 # ##############################
-
-    #                 AIC_values.append(calc_aic(W_opt, Z_opt, read_counts_k))
-    #                 ll_values.append(maximize_function(W_opt, Z_opt, read_counts_k))
-                    
-    #                 mean = np.matmul(W_opt.T, Z_opt) + epsilon
-    #                 optimized["Z"+str(f-1)] = Z_opt
-    #                 entropy_exp = np.where(mean<=5, entropy_minival(mean), entropy_maxval(mean))
-    #                 entropy_obs = poisson_mean(read_counts_k, mean)
-    #                 entropy_difference = np.mean(entropy_obs + entropy_exp)
-    #                 entropy_differences.append(entropy_difference)
-    #             else:
-    #                 break
-            
-    #         bval = np.argmin(np.abs(entropy_differences)-0) # np.argmax(AIC_values) # np.argmin(np.abs(entropy_differences)-0)
-    #         counter_bvalnmf.append([counter, bval])
-    #         print(counter, bval, entropy_differences, 'entropy b-value')
-    #         print(counter, np.argmax(AIC_values), 'AIC b-value')
-    #         # np.save(tmp_dir + '/autoencoder/reads_andcorrkmers_twoaug/nmf_investigate/Z_opt.npy', optimized["Z"+str(bval)])
-            
-
-    #         lambda_values = [2 * (ll_values[i+1] - ll_values[i]) for i in range(len(ll_values)-1)]
-
-
-    #         p_valuelist = []
-
-    #         for B, lambda_value in enumerate(lambda_values, start=2):
-    #             p_value = chi2.sf(np.array(lambda_value), 10 + num_C - 2*B)
-    #             p_valuelist.append(p_value)
-    #             print(B, 'B value', p_value, 'p value')
-    #             if p_value > 0.05:
-    #                 B -= 2
-    #                 break
-    #             else:
-    #                 B += 1
-    #         if B > len(ll_values)-1:
-    #             B = 0
-
-    #         bval = B
-    #         print(counter, B, 'log-likelihood b-bvalue')
-
-    #         if bval == 0:
-    #             bin_assigned.append(np.vstack((k, np.array([bin_index] * num_C))))
-    #             bin_index += 1
-            
-    #         else:
-    #             Z_opt = optimized["Z"+str(bval)]
-    #             bin_indices, _ = assignment(Z_opt, contigs_length_k, 0)
-    #             bin_indices += bin_index
-    #             bin_assigned.append(np.vstack((k, bin_indices)))
-    #             bin_index += len(set(bin_indices))    
-
-    #     # else:
-    #     #     bin_assigned.append(np.vstack((k, np.array([bin_index] * len(k)))))
-    #     #     bin_index += 1
-
-    # #     counter += 1
-
+    print(len(contigids_inbins), len(set(bin_assigned_aic[1])), 'grouped and binned')
     
-    # # bin_assigned = np.concatenate(bin_assigned, axis=1).T
-    # # return bin_assigned
+    print('total number of bins', len(pseudocounts), 'length of pseudocounts')
 
-    # with open(tmp_dir+'/autoencoder/reads_andcorrkmers_twoaug/nmf_investigate/Mcdevol_bins_i'+str(flag), 'w+') as file:
-    #     for q in bin_assigned:
-    #         file.write(str(contig_names[q[0]]) + "," + str(q[1]) + "\n")
-
-    # bins_list = np.split(bin_assigned[:,0], np.unique(bin_assigned[:, 1], return_index=True)[1][1:])
-    # # print(bins_list, 'bin list')
-    # bins = []
-    
-    # for i, j in enumerate(bins_list):
-    #     for k in j:
-    #         bins.append([k, i])
-    
-    # bins=np.array(bins).astype(int)
-    
-    # return counter_bvalnmf, bins_list, bins
+    return bin_assigned_aic, pseudocounts, contigids_inbins, Z_matrices # bin_assigned_ent, bin_assigned_aic, bin_assigned_ll, bin_assigned_md
 
 if __name__ == "__main__":
     s = time.time()
-    variable = 'autoencoder/reads_andcorrkmers_twoaug'
-    tmp_dir = "/big/work/mcdevol/cami2_datasets/marine/pooled_assembly/minimap_process/mcdevol_run/"
-    read_counts = np.load('/big/work/mcdevol/cami2_datasets/marine/pooled_assembly/minimap_process/mcdevol_run/mcdevol_readcounts.npz', allow_pickle=True)['arr_0']
-    contigs_length = np.load('/big/work/mcdevol/cami2_datasets/marine/pooled_assembly/minimap_process/mcdevol_run/contigs_2klength.npz', allow_pickle=True)['arr_0']
+    variable = "/strain_madness/binning/" #'autoencoder/reads_andcorrkmers_twoaug'
+    tmp_dir = "/big/work/mcdevol/cami2_datasets/" # "/big/work/mcdevol/cami2_datasets/marine/pooled_assembly/minimap_process/mcdevol_run/"
+    read_counts = np.load(tmp_dir + variable + '/mcdevol_readcounts.npz', allow_pickle=True)['arr_0']
+    contigs_length = np.load(tmp_dir + variable + 'contigs_2klength.npz', allow_pickle=True)['arr_0']
     
     Rc_reads = read_counts.sum(axis=1)
     Rn_reads = read_counts.sum(axis=0)
@@ -419,36 +420,30 @@ if __name__ == "__main__":
     print('obtained alpha parameter for read counts', dirichlet_prior, 'in' ,time.time()-ss,'seconds')
     dirichlet_prior_persamples  = dirichlet_prior * Rn_reads / Rn_reads.sum()
 
-    contig_names = np.load(tmp_dir + 'contigs_2knames.npz', allow_pickle=True)['arr_0']
-    clusters_ip = pd.read_csv(tmp_dir+'/autoencoder/reads_andcorrkmers_twoaug/clusters_cosine.tsv', header=None, sep='\t')
+    contig_names = np.load(tmp_dir + variable + 'contigs_2knames.npz', allow_pickle=True)['arr_0']
+    clusters_ip = pd.read_csv(tmp_dir + variable + '/autoencoder_results/clusters_cosine.tsv', header=None, sep='\t')
     mapped = pd.DataFrame(contig_names).merge(clusters_ip, left_on=0, right_on=1)[[1,'0_y']]
     mapped['0_y'] = [i for i in mapped['0_y']] # [int(i.split('_')[-1]) for i in mapped['0_y']]
     mapped = mapped.sort_values('0_y')
     clusters = mapped.groupby('0_y', sort=False).apply(lambda x: np.array(x.index)).to_numpy()
 
-
-    bin_assigned_ent, bin_assigned_aic, bin_assigned_ll, bin_assigned_md = nmf_deconvolution(read_counts, clusters, contigs_length, contig_names, dirichlet_prior, dirichlet_prior_persamples)
-
+    # bin_assigned_ent, bin_assigned_aic, bin_assigned_ll, bin_assigned_md = nmf_deconvolution(read_counts, clusters, contigs_length, contig_names, dirichlet_prior, dirichlet_prior_persamples)
+    bin_assigned_aic, pseudocounts, contigids_inbins, Z_matrices = nmf_deconvolution(read_counts, clusters, contigs_length, dirichlet_prior, dirichlet_prior_persamples)
     
-    # print('run time: ', time.time()-s, 'seconds first round')
-    # _, bins_list2, bins_2 = nmf_deconvolution(read_counts, bins_list1, contigs_length, contig_names, False)
-    # print(bins_1, bins_2)
+    np.save(tmp_dir + variable + '/pseudocounts.npy', pseudocounts)
+    np.save(tmp_dir + variable + '/contigids_inbins.npy', contigids_inbins)
+    np.save(tmp_dir + variable + '/Z_matrices.npy', np.array(Z_matrices, dtype=object))
 
-    # np.save(tmp_dir + '/autoencoder/reads_andcorrkmers_twoaug/nmf_investigate/bins_1.npy', bins_1)
-    # np.save(tmp_dir + '/autoencoder/reads_andcorrkmers_twoaug/nmf_investigate/bins_2.npy', bins_2)
-    
-    with open(tmp_dir+'/autoencoder/reads_andcorrkmers_twoaug/nmf_investigate/Mcdevol_bins_baysd_ent', 'w+') as file:
-        for q in bin_assigned_ent:
-            file.write(str(contig_names[q[0]]) + "," + str(q[1]) + "\n")
-    with open(tmp_dir+'/autoencoder/reads_andcorrkmers_twoaug/nmf_investigate/Mcdevol_bins_baysd_aic', 'w+') as file:
+    with open(tmp_dir + variable + '/Mcdevol_bins', 'w+') as file:
         for q in bin_assigned_aic:
             file.write(str(contig_names[q[0]]) + "," + str(q[1]) + "\n")
-    with open(tmp_dir+'/autoencoder/reads_andcorrkmers_twoaug/nmf_investigate/Mcdevol_bins_baysd_ll', 'w+') as file:
-        for q in bin_assigned_ll:
-            file.write(str(contig_names[q[0]]) + "," + str(q[1]) + "\n")
-    with open(tmp_dir+'/autoencoder/reads_andcorrkmers_twoaug/nmf_investigate/Mcdevol_bins_baysd_md', 'w+') as file:
-        for q in bin_assigned_md:
-            file.write(str(contig_names[q[0]]) + "," + str(q[1]) + "\n")
+
+    # with open(tmp_dir+'/autoencoder/reads_andcorrkmers_twoaug/nmf_investigate/Mcdevol_bins_baysd_ll', 'w+') as file:
+    #     for q in bin_assigned_ll:
+    #         file.write(str(contig_names[q[0]]) + "," + str(q[1]) + "\n")
+    # with open(tmp_dir+'/autoencoder/reads_andcorrkmers_twoaug/nmf_investigate/Mcdevol_bins_baysd_md', 'w+') as file:
+    #     for q in bin_assigned_md:
+    #         file.write(str(contig_names[q[0]]) + "," + str(q[1]) + "\n")
 
     # with open(tmp_dir+'/autoencoder/reads_andcorrkmers_twoaug/nmf_investigate/Mcdevol_bins_i2', 'w+') as file:
     #     for q in bins_2:
