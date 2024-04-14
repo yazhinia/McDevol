@@ -30,7 +30,7 @@ TOTAL_CONTIGS = 0
 LATENT_DIMENSION = 0
 ETA = 0 # 1/latent_dim weight of contigs length
 DISTANCE_CUTOFF = 1
-NN_SIZE_CUTOFF = 200000
+NN_SIZE_CUTOFF = 500000
 NCPUS = (os.cpu_count() if os.cpu_count() is not None else 8)
 
 def add_selfindex(data_indices, labels, distances):
@@ -99,15 +99,18 @@ def get_neighbors(latent, length):
             idx = np.nonzero(distances[i] <= DISTANCE_CUTOFF)[0]
             nnbydist_indices[i] = labels[i][idx]
             distance_percontig[i] = DISTANCE_CUTOFF
-        elif length[i] < 8000:
-            # contigs with many neighbors but short and hence noisely include many neighbors
-            nnbydist_indices[i] = labels[i][:10]
-            distance_percontig[i] = distances[i,10]
+        # elif length[i] < 8000:
+        #     # contigs with many neighbors but short and hence noisely include many neighbors
+        #     nnbydist_indices[i] = labels[i][:10]
+        #     distance_percontig[i] = distances[i,10]
         else:
             nnbydist_indices[i] = nn_inds
 
-    densities = np.array([length[c] ** ETA / distance_percontig[c] \
-                    for c in data_indices]) # change sum_nn(l_nni/d_nni)
+    # densities = np.array([length[c] ** ETA / distance_percontig[c] \
+    #                for c in data_indices])
+    # Densities with neighbors data, sum_nn(l_nni/d_nni)
+    densities = np.array([sum(nnbydist_indices[c] ** ETA / distances[c, :len(nnbydist_indices[c])+1]) \
+                    for c in data_indices])
 
     graph = {c : list(zip(nnbydist_indices[c][1:], densities[nnbydist_indices[c][1:]]))
             if len(nnbydist_indices[c][1:]) > 0 \
@@ -216,7 +219,7 @@ def process_peak(i, latent, graph, densities, density_peaks, \
     if density_peaks[i] != density_peaks[i:][0]:
         raise RuntimeError('subset peaks doesn\'t include self peak')
     distances_topeaks = np.sum((latent[density_peaks[i:]] - latent[peak])**2, axis=1)
-    filtered_indices = np.nonzero(distances_topeaks <= DISTANCE_CUTOFF*100)[0]
+    filtered_indices = np.nonzero(distances_topeaks <= DISTANCE_CUTOFF*500)[0]
     query_peaks_indices = filtered_indices[np.argsort(distances_topeaks[filtered_indices])] + i
     if len(query_peaks_indices) > 1:
         print(peak, density_peaks[query_peaks_indices], 'peak and query density peaks')
@@ -250,19 +253,20 @@ def process_peak(i, latent, graph, densities, density_peaks, \
     si_indices = {key: 1 - value / densities[peak] \
         for key, value in higherdensity_links.items()}
 
-    if contig_length[peak] > 1E6:
-        minvalues =  [val for key, val in si_indices.items() if key != peak]
-        if minvalues and min(minvalues) < 0.0:
-            peak_links = []
-            # print('long contig', flush=True)
-    # if any(val == 0.0 for val in si_indices.values()):
-    #     peak_links = [index+i for index, value in enumerate(si_indices.items()) if value[1] <= 0.0 or value[1] == float('-inf')]
-    #     print('second if', flush=True)
-    else:
-        # select links to merge if si_indices < 0.5 (Hyper parameter)
-        peak_links = [index+i for index, value in enumerate(si_indices.items()) if value[1] < 0.5 and value[0] != peak]
+    # if contig_length[peak] > 1E6:
+    #     minvalues =  [val for key, val in si_indices.items() if key != peak]
+    #     if minvalues and min(minvalues) < 0.0:
+    #         peak_links = []
+    #         # print('long contig', flush=True)
+    # # if any(val == 0.0 for val in si_indices.values()):
+    # #     peak_links = [index+i for index, value in enumerate(si_indices.items()) if value[1] <= 0.0 or value[1] == float('-inf')]
+    # #     print('second if', flush=True)
+    # else:
+    #     # select links to merge if si_indices < 0.5 (Hyper parameter)
+    #     peak_links = [index+i for index, value in enumerate(si_indices.items()) if value[1] < 0.5 and value[0] != peak]
         # print('else', peak_links, flush=True)
     # print(i, peak_links, flush=True)
+    peak_links = [index+i for index, value in enumerate(si_indices.items()) if value[1] < 0.5 and value[0] != peak]
     return peak_links
 
 def component(graph, nnbydist_indices, densities, density_peaks, contig_length, otuids, primary_clusters):
@@ -364,7 +368,7 @@ if __name__ == "__main__":
 
     TOTAL_CONTIGS, LATENT_DIMENSION = latent.shape
     data_indices = np.arange(TOTAL_CONTIGS)
-    # ETA = 0.4 # 1 / LATENT_DIMENSION
+    ETA = 2 / LATENT_DIMENSION
 
 
     # # subset
