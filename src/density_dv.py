@@ -7,7 +7,7 @@ import numpy as np
 import hnswlib
 import time
 import matplotlib.pyplot as plt
-from connected_components import group_indices, dijkstra_max_min_density, dijkstra_max_min_density1
+from connected_components import find_connected_components, dijkstra_max_min_density, dijkstra_max_min_density1
 from collections import Counter
 from multiprocessing import Pool, current_process
 from functools import partial
@@ -194,7 +194,7 @@ def get_density_peaks(nnbydist_indices, length, densities):
     gc.collect()
 
     primary_clusters = []
-    for nn in density_peaks_inds:
+    for nn in density_peaks:
         inds = np.nonzero(nearest == nn)[0]
         primary_clusters.append(inds)
 
@@ -209,156 +209,106 @@ def get_density_peaks(nnbydist_indices, length, densities):
 
     return densities, density_peaks, nearest, primary_clusters
 
-def process_peak(peak, latent, graph, densities, density_peaks, otuids,\
-    nnbydist_indices, contig_length, primary_clusters):
+def process_peak(i, latent, graph, densities, density_peaks, \
+    contig_length, primary_clusters):
     """ process each peak to find density valley """
+    peak = density_peaks[i]
+    if density_peaks[i] != density_peaks[i:][0]:
+        raise RuntimeError('subset peaks doesn\'t include self peak')
+    distances_topeaks = np.sum((latent[density_peaks[i:]] - latent[peak])**2, axis=1)
+    filtered_indices = np.nonzero(distances_topeaks <= DISTANCE_CUTOFF*100)[0]
+    query_peaks_indices = filtered_indices[np.argsort(distances_topeaks[filtered_indices])] + i
+    if len(query_peaks_indices) > 1:
+        print(peak, density_peaks[query_peaks_indices], 'peak and query density peaks')
 
-    distances_topeaks = np.sum((latent[density_peaks] - latent[peak])**2, axis=1)
-    print(distances_topeaks, 'distance to peak', flush=True)
-    filtered_indices = np.nonzero(distances_topeaks <= DISTANCE_CUTOFF*10)[0]
-    query_peaks_indices = filtered_indices[np.argsort(distances_topeaks[filtered_indices])]
-    nodes = np.concatenate([primary_clusters[i] \
-        for i,_ in enumerate(density_peaks) \
-        if i in query_peaks_indices]).ravel()
-
+    nodes = np.concatenate([primary_clusters[j] for j in query_peaks_indices]).ravel()
     subgraph = {node: graph[node] for node in nodes}
 
+    for node in subgraph:
+        node_edges = subgraph[node]
+        filtered_edges = [(edge, weight) for edge, weight in node_edges if edge in nodes]
+        if filtered_edges:
+            subgraph[node] = filtered_edges
+        else:
+            subgraph[node] = []
+
+    if peak not in subgraph.keys():
+        raise RuntimeError("How peak is not in subgraph keys")
+    
+    if peak not in nodes:
+        raise RuntimeError("How peak is not in nodes")
+
+    #TODO: end the search as soon as valleys for list of peaks completed
     max_min_densities = dijkstra_max_min_density(subgraph, peak)
-
-    # TODO: check if cutoff for density valley is needed to merge peaks.
-    # SI index would help
-    # Higher density condition doesn't work when v and densities[peak] is same value
-    higherdensity_links = {k:v for k, v in max_min_densities.items() \
-        if (k != peak) and (v != float('-inf'))}
-    print(current_process().name)
+    # print(len(nodes), 'max_min densities')
+    higherdensity_links = {k:v for k, v in max_min_densities.items() if k in density_peaks[i:]}
+    # if (k != peak) and (v != float('-inf'))
+    # print(i, density_peaks[i], len(higherdensity_links), len(max_min_densities), flush=True)
+    peak_links = []
+    # print(i, peak_links, flush=True)
     # if len(higherdensity_links) > 1:
-    #     si_indices = {key: 1 - value / densities[peak] \
-    #         for key, value in higherdensity_links.items()}
-    #     links = dict(filter(lambda item: item[1] < 0.2, si_indices.items()))
-    #     print(current_process().name, links)
-    #     if links:
-    #         if contig_length[peak] > 1E6 and not min(list(links.values())) < 0.0:
-    #             links = {}
-    #         if min(list(links.values())) <= 0.0:
-    #             links = dict(filter(lambda item: item[1] <= 0.0, si_indices.items()))
-    # else:
-    #     links = {}
-    return higherdensity_links
+    si_indices = {key: 1 - value / densities[peak] \
+        for key, value in higherdensity_links.items()}
 
+    if contig_length[peak] > 1E6:
+        minvalues =  [val for key, val in si_indices.items() if key != peak]
+        if minvalues and min(minvalues) < 0.0:
+            peak_links = []
+            # print('long contig', flush=True)
+    # if any(val == 0.0 for val in si_indices.values()):
+    #     peak_links = [index+i for index, value in enumerate(si_indices.items()) if value[1] <= 0.0 or value[1] == float('-inf')]
+    #     print('second if', flush=True)
+    else:
+        # select links to merge if si_indices < 0.5 (Hyper parameter)
+        peak_links = [index+i for index, value in enumerate(si_indices.items()) if value[1] < 0.5 and value[0] != peak]
+        # print('else', peak_links, flush=True)
+    # print(i, peak_links, flush=True)
+    return peak_links
 
 def component(graph, nnbydist_indices, densities, density_peaks, contig_length, otuids, primary_clusters):
     """ get components """
-    # peak_links = []
-    s = time.time()
-    for peak in density_peaks:
-        distances_topeaks = np.sum((latent[density_peaks] - latent[peak])**2, axis=1)
-        filtered_indices = np.nonzero(distances_topeaks <= DISTANCE_CUTOFF*10)[0]
-        query_peaks_indices = filtered_indices[np.argsort(distances_topeaks[filtered_indices])]
-        nodes = np.concatenate([primary_clusters[i] \
-            for i,_ in enumerate(density_peaks) \
-            if i in query_peaks_indices]).ravel()
-        print(len(nodes), nodes, 'nodes')
-        subgraph = {node: graph[node] for node in nodes}
-        if 4901 in nodes:
-            print('present')
-        max_min_densities = dijkstra_max_min_density(subgraph, peak)
-
-
-        # TODO: check if cutoff for density valley is needed to merge peaks.
-        # SI index would help
-        # Higher density condition doesn't work when v and densities[peak] is same value
-        peak_links = {}
-        higherdensity_links = {k:v for k, v in max_min_densities.items() \
-            if (k != peak) and (v != float('-inf'))}
-        if len(higherdensity_links) > 1:
-            si_indices = {key: 1 - value / densities[peak] \
-                for key, value in higherdensity_links.items()}
-            links = dict(filter(lambda item: item[1] < 0.2, si_indices.items()))
-
-            if links:
-                if contig_length[peak] > 1E6 and not min(list(links.values())) < 0.0:
-                    peak_links.update({})
-                if min(list(links.values())) <= 0.0:
-                    peak.links.update(dict(filter(lambda item: item[1] <= 0.0, si_indices.items())))
-        else:
-            peak_links.update({})
-        print(time.time()- s, 'seconds')
-        pdb.set_trace()
-        breakpoint()
-    #     s= time.time()
-    #     max_min_densities = dijkstra_max_min_density(graph, peak)
-    #     print(peak, time.time() -s , 'seconds')
-    #     higherdensity_links = {k:v for k, v in max_min_densities.items() \
-    #     if (k in density_peaks) and (k != peak) and (v != float('-inf'))}
-    #     # Higher density condition doesn't work when v and densities[peak] is same value
-
-    #     si_indices = {key: 1 - value / densities[peak] \
-    #             for key, value in higherdensity_links.items()}
-    #     links = dict(filter(lambda item: item[1] < 0.2, si_indices.items()))
-
-    #     if contig_length[peak] > 1E6:
-    #         links = {}
-    #     peak_links.append(links)
-
-    # return peak_links
-    # components = group_indices(nnbydist_indices, density_peaks)
-    # print(len(components))
-    # for p, q in components:
-    #     if len(p) > 1:
-    #         print(p, len(p), len(q))
-
-    # subgraph = {}
-    # subgraph.update({peak: graph[peak] for peak in peaks_incomponent})
-
-    # for node in nodes:
-    #     if node in graph:
-    #         # subgraph[node] = graph[node]
-    #         node_edges = graph[node]
-    #         filtered_edges = [(edge, weight) for edge, weight in node_edges if edge in nodes]
-    #         if filtered_edges:
-    #             subgraph[node] = filtered_edges
-
-    # for peak in density_peaks:
-    #     distances_topeaks = np.sum((latent[density_peaks] - latent[peak])**2, axis=1)
-    #     filtered_indices = np.nonzero(distances_topeaks <= DISTANCE_CUTOFF*10)[0]
-    #     query_peaks_indices = filtered_indices[np.argsort(distances_topeaks[filtered_indices])]
-    #     nodes = np.concatenate([primary_clusters[i] \
-    #         for i,_ in enumerate(density_peaks) \
-    #         if i in query_peaks_indices]).ravel()
-
-    #     subgraph = {node: graph[node] for node in nodes}
-
-
-    # print('going to pool for Dijkstras algorithm')
-    # s= time.time()
-    # pool = Pool(NCPUS-2)
+    
+    print('going to pool for Dijkstras algorithm')
+    s= time.time()
+    pool = Pool(NCPUS-2)
     # partial_process_peak = partial(process_peak, latent=latent, graph=graph, densities=densities,\
     #                             density_peaks=density_peaks,\
-    #                             otuids=otuids, nnbydist_indices=nnbydist_indices,\
     #                             contig_length=contig_length, primary_clusters=primary_clusters)
 
-    # peak_links = pool.starmap(partial_process_peak, density_peaks)
+    partial_process_peak = [(i, latent, graph, densities, density_peaks, contig_length, primary_clusters) for i in range(len(density_peaks))]
+ 
+    peak_links = pool.starmap(process_peak, partial_process_peak)
 
-    # # Track progress variables
-    # total_tasks = len(density_peaks)
-    # completed_tasks = 0
-    # peak_links = []
-    # # Use starmap to process tasks and track progress
-    # for links in pool.starmap(partial_process_peak, [(peak,) for peak in density_peaks]):
-    #     # print(result, 'result from pool')
-    #     peak_links.append(links)
-    #     # Update progress
-    #     completed_tasks += 1
-    #     progress_percent = (completed_tasks / total_tasks) * 100
-    #     print(f"Progress: {completed_tasks}/{total_tasks} \
-    #         tasks completed ({progress_percent:.2f}%)")
-    # pool.close()
-    # pool.join()
-    # print(peak_links)
+    pool.close()
+    pool.join()
+
+    # total_contigs_set = 0
+    # total_set = []
+    # for i in range(len(primary_clusters)):
+    #     total_contigs_set += len(primary_clusters[i])
+    #     total_set.extend(primary_clusters[i])
+    # print(total_set)
+    connected_links = find_connected_components(peak_links)
+    total_clusters = len(set(connected_links))
+    final_clusters = []
+    for c in range(total_clusters):
+        indices = np.nonzero(connected_links==c)[0]
+        temp_cluster = []
+        for idx in indices:
+            print(idx, primary_clusters[idx])
+            temp_cluster.extend(primary_clusters[idx])
+        # print(temp_cluster)
+        final_clusters.append(temp_cluster)
+   
     gc.collect()
-    print(time.time() -s ,'seconds to complete Dijkstras algorithm')
 
+    with open('clusters', 'w') as file1:
+        for counter, f in enumerate(final_clusters):
+            for q in f:
+                file1.write(str(q) + ' ' + otuids[q] + ' ' + str(counter) + '\n')
+    file1.close()
         
+    print(time.time() - s ,'seconds to complete Dijkstras algorithm')
     # return peak_links
 
 
@@ -406,27 +356,27 @@ def cluster(latent, contig_length):
 
 if __name__ == "__main__":
 
-    variable = '/big/work/mcdevol/cami2_datasets/marine/pooled_assembly/new_mcdevol_run/vae_byol/'
+    variable = './' # '/big/work/mcdevol/cami2_datasets/marine/pooled_assembly/new_mcdevol_run/vae_byol/'
     latent = np.load(variable + 'latent_mu.npy')
-    contig_length = np.load(variable + '../contigs_2klength.npz',allow_pickle=True)['arr_0']
+    contig_length = np.load(variable + 'contigs_2klength.npz',allow_pickle=True)['arr_0']
     # contig_names = np.load(variable + 'contigs_2knames.npz',allow_pickle=True)['arr_0']
-    otuids = np.loadtxt(variable + '../otuids', dtype='object') # type: ignore
+    otuids = np.loadtxt(variable + 'otuids', dtype='object') # type: ignore
 
     TOTAL_CONTIGS, LATENT_DIMENSION = latent.shape
     data_indices = np.arange(TOTAL_CONTIGS)
     # ETA = 0.4 # 1 / LATENT_DIMENSION
 
 
-    # subset
-    np.random.seed(42)
-    selected_indices = sorted(data_indices[\
-        np.random.choice(len(data_indices), size=50000, replace=False)])
-    latent = latent[selected_indices]
-    TOTAL_CONTIGS, LATENT_DIMENSION = latent.shape
-    data_indices = np.arange(TOTAL_CONTIGS)
-    contig_length = contig_length[selected_indices]
-    otuids = otuids[selected_indices]
-    print(latent.shape)
+    # # subset
+    # np.random.seed(42)
+    # selected_indices = sorted(data_indices[\
+    #     np.random.choice(len(data_indices), size=50000, replace=False)])
+    # latent = latent[selected_indices]
+    # TOTAL_CONTIGS, LATENT_DIMENSION = latent.shape
+    # data_indices = np.arange(TOTAL_CONTIGS)
+    # contig_length = contig_length[selected_indices]
+    # otuids = otuids[selected_indices]
+    # print(latent.shape)
 
     cluster(latent, contig_length) # type: ignore
 
