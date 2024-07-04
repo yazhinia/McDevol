@@ -20,6 +20,39 @@ import logging
 
 # TODO: syncbatch normalization
 
+class WarmUpLR(_LRScheduler):
+    def __init__(self, optimizer, total_iters, last_epoch=-1):
+        self.total_iters = total_iters
+        super(WarmUpLR, self).__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        return [base_lr * min(1.0, (self.last_epoch + 1) / self.total_iters) for base_lr in self.base_lrs]
+
+# Combine both schedulers
+class WarmUpThenScheduler(_LRScheduler):
+    def __init__(self, optimizer, warmup_scheduler, main_scheduler):
+        self.warmup_scheduler = warmup_scheduler
+        self.main_scheduler = main_scheduler
+        self.warmup_finished = False
+        super().__init__(optimizer)
+    
+    def get_lr(self):
+        if not self.warmup_finished:
+            if self.warmup_scheduler.last_epoch < self.warmup_scheduler.total_iters:
+                lr = self.warmup_scheduler.get_lr()
+            else:
+                self.warmup_finished = True
+                lr = self.main_scheduler.get_lr()
+                self.main_scheduler.last_epoch = self.warmup_scheduler.last_epoch - self.warmup_scheduler.total_iters
+        else:
+            lr = self.main_scheduler.get_lr()
+        return lr
+    
+    def step(self, epoch=None):
+        if not self.warmup_finished:
+            self.warmup_scheduler.step(epoch)
+        else:
+            self.main_scheduler.step(epoch)
 
 def normalize_counts(counts: np.ndarray):
     """ normalize count by mean division """
@@ -125,7 +158,7 @@ class BYOLmodel(nn.Module):
         self.outdir = args.outdir
         self.logger = args.logger
         self.scheduler = None
-        self.augmentsteps = [0.7, 0.6, 0.5, 0.3] # [0.9, 0.7, 0.6, 0.5, 0.3]
+        self.augmentsteps = [0.9, 0.7, 0.6, 0.5] #, 0.3]
         self.nnindices = []
         projection_size = 256
         projection_hidden_size = 4096
@@ -134,9 +167,8 @@ class BYOLmodel(nn.Module):
         self.marker = {key: torch.tensor(value) for key, value in args.marker.items()}
         cindices = np.arange(self.ncontigs)
         indices_withpairs = np.unique(self.pairlinks.flatten())
-        self.pairindices = torch.from_numpy(cindices[indices_withpairs])
-        print(self.pairindices, 'self pair indices')
-        self.indim = self.nsamples + 1 # + 512
+        self.pairindices = torch.from_numpy(cindices) # torch.from_numpy(cindices[indices_withpairs])
+        self.indim = self.nsamples + 1 + 512
 
         self.read_counts = torch.from_numpy(normalize_counts(args.reads))
         self.kmeraug1 = torch.from_numpy(args.kmeraug1)
@@ -275,12 +307,12 @@ class BYOLmodel(nn.Module):
             if training:
                 loss_array, latent_space, fraction_pi, optimizer = args
                 optimizer.zero_grad()
-                read_counts, rawread_counts, contigs_length, cindices, kmeraug1, kmeraug2 = in_data
+                read_counts, rawread_counts, contigs_length, _, kmeraug1, kmeraug2 = in_data
 
             else:
                 loss_array, latent_space = args
 
-                read_counts, rawread_counts, contigs_length, cindices, kmeraug1, kmeraug2 = in_data
+                read_counts, rawread_counts, contigs_length, _, kmeraug1, kmeraug2 = in_data
 
             if training:
                 ### augmentation by fragmentation ###
@@ -294,13 +326,13 @@ class BYOLmodel(nn.Module):
                     augmented_reads2 = augmented_reads2.cuda()
                     kmeraug1 = kmeraug1.cuda()
                     kmeraug2 = kmeraug2.cuda()
-                    cindices = cindices.cuda()
+                    # cindices = cindices.cuda()
 
                 rc_reads1 = torch.log(augmented_reads1.sum(axis=1))
                 rc_reads2 = torch.log(augmented_reads2.sum(axis=1))
                 latent, loss = \
-                    self(torch.cat((augmented_reads1, rc_reads1[:,None], kmeraug1), 1), \
-                        torch.cat((augmented_reads2, rc_reads2[:,None], kmeraug2), 1))
+                    self(torch.cat((augmented_reads1, kmeraug1, rc_reads1[:,None]), 1), \
+                        torch.cat((augmented_reads2, kmeraug2, rc_reads2[:,None]), 1))
 
             else:
                 rc_reads = torch.log(read_counts.sum(axis=1))
@@ -308,10 +340,9 @@ class BYOLmodel(nn.Module):
                     read_counts = read_counts.cuda()
                     rc_reads = rc_reads.cuda()
                     kmeraug1 = kmeraug1.cuda()
-                    cindices = cindices.cuda()
                 latent, loss = \
-                    self(torch.cat((read_counts, rc_reads[:,None], kmeraug1), 1), \
-                        torch.cat((read_counts, rc_reads[:,None], kmeraug1), 1))
+                    self(torch.cat((read_counts, kmeraug1, rc_reads[:,None]), 1), \
+                        torch.cat((read_counts, kmeraug1, rc_reads[:,None]), 1))
 
             loss_array.append(loss.data.item())
             latent_space.append(latent.cpu().detach().numpy())
@@ -368,8 +399,8 @@ class BYOLmodel(nn.Module):
                 rc_reads1 = torch.log(augmented_reads1.sum(axis=1))
                 rc_reads2 = torch.log(augmented_reads2.sum(axis=1))
                 latent, loss = \
-                    self(torch.cat((augmented_reads1, rc_reads1[:,None], augmented_kmers1), 1), \
-                        torch.cat((augmented_reads2, rc_reads2[:,None], augmented_kmers2), 1))
+                    self(torch.cat((augmented_reads1, augmented_kmers1, rc_reads1[:,None]), 1), \
+                        torch.cat((augmented_reads2, augmented_kmers2, rc_reads2[:,None]), 1))
             else:
                 augmented_reads1 = self.read_counts[pairindices_1]
                 augmented_kmers1 = self.kmeraug1[pairindices_1]
@@ -379,7 +410,7 @@ class BYOLmodel(nn.Module):
                     augmented_kmers1 = augmented_kmers1.cuda()
 
                 rc_reads = torch.log(augmented_reads1.sum(axis=1))
-                input1 = torch.cat((augmented_reads1, rc_reads[:,None], augmented_kmers1), 1)
+                input1 = torch.cat((augmented_reads1, augmented_kmers1, rc_reads[:,None]), 1)
                 latent, loss = self(input1, input1)
             loss_array.append(loss.data.item())
             latent_space.append(latent.cpu().detach().numpy())
@@ -402,7 +433,7 @@ class BYOLmodel(nn.Module):
         dataloader_splittrain,
         dataloader_splitval,
         optimizer,
-        batchsteps
+        batchsteps,
     ):
         """ training epoch """
 
@@ -414,18 +445,18 @@ class BYOLmodel(nn.Module):
         fraction_pi = self.augmentsteps[0]
 
         counter = 1
-        nepochs_1 = 200 # int(nepochs / 2)
-        nepochs_2 = nepochs - nepochs_1 # int(nepochs / 2)
+        nepochs_1 = int(nepochs / 2)
+        nepochs_2 = nepochs - nepochs_1 # int(nepochs / 2) # 100 #
 
         # with torch.autograd.detect_anomaly():
         # detect nan occurrence (only to for loop parts)
 
-        check_earlystop = EarlyStopper()
+        # check_earlystop = EarlyStopper()
         # augmentation by sampling
         for epoch in range(nepochs_1):
 
             if epoch in batchsteps:
-                print(batch_size, 'batch size inside augmentation sampling')
+                print(batch_size, fraction_pi, 'batch size inside augmentation sampling, fraction pi')
                 batch_size = batch_size * 2
 
                 if len(dataloader_train.dataset) > batch_size:
@@ -451,6 +482,9 @@ class BYOLmodel(nn.Module):
 
             self.process_batches(epoch, dataloader_train, \
                 True, loss_train, latent_space_train, fraction_pi, optimizer)
+            
+            self.scheduler.step()
+
 
             # testing
             self.eval()
@@ -500,7 +534,7 @@ class BYOLmodel(nn.Module):
         """ train medevol vae byol model """
 
         if batchsteps is None:
-            batchsteps = [75, 100, 150, 300] # [1, 2, 3, 4] # [500, 1000, 2000] # [50, 100, 150, 200] # [30, 50, 70, 100], #[10, 20, 30, 45],
+            batchsteps = [50, 75, 100] # [1, 2, 3, 4] # [500, 1000, 2000] # [50, 100, 150, 200] # [30, 50, 70, 100], #[10, 20, 30, 45],
         batchsteps_set = sorted(set(batchsteps))
 
         dataloader_train = DataLoader(dataset=self.dataset_train, \
@@ -519,6 +553,12 @@ class BYOLmodel(nn.Module):
             num_workers=self.num_workers, pin_memory=self.cuda)
 
         optimizer = Adam(self.parameters(), lr=lrate, weight_decay=1e-1)
+        warmup_epochs = 50
+        warmup_scheduler = WarmUpLR(optimizer, total_iters=warmup_epochs * len(dataloader_train))
+
+        # Define the main scheduler
+        main_scheduler = CosineAnnealingLR(optimizer, T_max=100-warmup_epochs, eta_min=0)
+        self.scheduler = WarmUpThenScheduler(optimizer, warmup_scheduler, main_scheduler)
 
         self.trainepoch(
             nepochs, dataloader_train, dataloader_val, \
@@ -550,8 +590,7 @@ class BYOLmodel(nn.Module):
 
         loss_test = []
         latent_space = []
-        # initialize target network
-        # self.initialize_target_network()
+
         self.eval()
         with torch.no_grad():
             self.process_batches(0, dataloader, \
@@ -591,16 +630,16 @@ def train_linear_classifier(byol_model, whole_dataloader, train_loader, test_loa
     for epoch in range(300): # Number of epochs
         classifier.train()
         # byol_model.eval()
-        for read_counts, labels in train_loader: # kmer,
+        for read_counts, kmer, labels in train_loader:
             read_counts, labels = read_counts.to(device), labels.to(device)
-            # kmer = kmer.to(device)
+            kmer = kmer.to(device)
             rc_log = torch.log(read_counts.sum(axis=1))
             rc_log = rc_log.to(device)
 
             # Get representations from BYOL model
             with torch.no_grad():
                 representations = byol_model.online_encoder(\
-                    torch.cat((read_counts, rc_log[:,None]),1)).detach() # , kmer
+                    torch.cat((read_counts, kmer, rc_log[:,None]),1)).detach()
 
             # Train classifier on these representations
             outputs = classifier(representations)
@@ -616,13 +655,13 @@ def train_linear_classifier(byol_model, whole_dataloader, train_loader, test_loa
     correct = 0
     total = 0
     with torch.no_grad():
-        for read_counts, labels in test_loader: # kmer, 
+        for read_counts, kmer, labels in test_loader:
             read_counts, labels = read_counts.to(device), labels.to(device)
-            # kmer = kmer.to(device)
+            kmer = kmer.to(device)
             rc_log = torch.log(read_counts.sum(axis=1))
             rc_log = rc_log.to(device)
             representations = byol_model.online_encoder(\
-                torch.cat((read_counts, rc_log[:,None]),1)).detach() # , kmer
+                torch.cat((read_counts, kmer, rc_log[:,None]),1)).detach()
             outputs = classifier(representations)
             loss = criterion(outputs, labels)
             logger.info(f"Epoch {epoch+1}, Loss: {loss.detach().item()}")
@@ -639,13 +678,13 @@ def train_linear_classifier(byol_model, whole_dataloader, train_loader, test_loa
     predicted_labels = []
     probabilities = []
     with torch.no_grad():
-        for read_counts, labels in whole_dataloader: # kmer,
+        for read_counts, kmer, labels in whole_dataloader: 
             read_counts, labels = read_counts.to(device), labels.to(device)
-            # kmer = kmer.to(device)
+            kmer = kmer.to(device)
             rc_log = torch.log(read_counts.sum(axis=1))
             rc_log = rc_log.to(device)
             representations = byol_model.online_encoder(\
-                torch.cat((read_counts, rc_log[:,None]),1)).detach() # , kmer
+                torch.cat((read_counts, kmer, rc_log[:,None]),1)).detach()
             outputs = classifier(representations)
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
@@ -671,7 +710,7 @@ def main() -> None:
         description="BYOL for metagenome binning",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         usage="%(prog)s \
-        --reads --length --names --otuids --marker --kmeraug1 --kmeragu2 --outdir [options]",
+        --reads --length --names --otuids --marker --kmer --kmeraug1 --kmeragu2 --outdir [options]",
         add_help=False,
     )
 
@@ -731,10 +770,10 @@ def main() -> None:
     byol = BYOLmodel(args)
     total_params = sum(p.numel() for p in byol.parameters() if p.requires_grad)
     print(total_params, 'total parameters', flush=True)
-    # byol.trainmodel()
+    byol.trainmodel()
     # # # # byol.testmodel()
-    # latent = byol.getlatent()
-    # np.save(args.outdir + '/latent.npy', latent)
+    latent = byol.getlatent()
+    np.save(args.outdir + '/latent.npy', latent)
     # latent = np.load(args.outdir + '/latent.npy')
     # print(f"BYOL training is completed in {time.time() - start} seconds")
     # byol.load_state_dict(torch.load(args.outdir + '/byol_model.pth'), strict= False)
@@ -747,7 +786,21 @@ def main() -> None:
     labels = args.otuids[1].to_numpy()
     read_counts = torch.from_numpy(normalize_counts(args.reads))
     kmers = torch.from_numpy(args.kmer)
-    dataset = TensorDataset(read_counts, torch.from_numpy(labels)) # kmers, 
+
+
+    print(args.reads, 'args reads')
+    print(args.kmer, 'args kmer')
+    print(args.length, 'args length')
+    print(args.names, 'args names')
+    print(args.pairlinks, 'args pairlinks')
+    print(args.kmeraug1, 'args kmeraug1')
+    print(args.kmeraug2, 'args kmeraug2')
+    print(args.marker, 'args marker')
+    print(args.outdir, 'args outdir')
+    print(args.otuids[1], 'args otuids')
+    print(labels, 'labels')
+
+    dataset = TensorDataset(read_counts, kmers, torch.from_numpy(labels)) 
 
     train_size = int(read_counts.shape[0] * 0.8)
     test_size = int(read_counts.shape[0] - train_size)
