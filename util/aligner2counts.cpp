@@ -1,6 +1,7 @@
 #include <iostream>
 #include <stdio.h>
 #include <string>
+#include <cmath>
 #include <fstream>
 #include <cstring>
 #include <sstream>
@@ -56,7 +57,6 @@ void addpairlinks(ContigLinks& contiglinks, const std::string& c1, const std::st
     std::string first = (c1 < c2) ? c1 : c2;
     std::string second = (c1 < c2) ? c2 : c1;
     std::pair<std::string, std::string> linkPair = std::make_pair(first, second);
-
     contiglinks[linkPair] += frac_contigs_mapped;
 }
 
@@ -193,31 +193,36 @@ void counting(AlnParser &parsedaln, ContigsMap &contigs_map, ContigLinks &contig
     auto it = std::max_element(parsedaln.begin(), parsedaln.end(),[](const al_data& a,const al_data& b) { return a.sequence_identity < b.sequence_identity;});
 
     // for (size_t r = 0; r < parsedaln.size(); r++) {
-    //     // std::cout << parsedaln[r].read << " " << parsedaln[r].contig << " " << parsedaln[r].pair_dir << " " << parsedaln[r].paired << " " << parsedaln[r].sequence_identity << " complete set \n";
-    //     eachcount << parsedaln[r].read << " " << parsedaln[r].contig << " " << parsedaln[r].pair_dir << " " << parsedaln[r].paired << " " << parsedaln.size() << " " << parsedaln[r].sequence_identity << "\n";
+    //     std::cout << parsedaln[r].read << " " << parsedaln[r].contig << " " << parsedaln[r].pair_dir << " " << parsedaln[r].paired << " " << parsedaln[r].sequence_identity << " complete set \n";
+    //     // eachcount << parsedaln[r].read << " " << parsedaln[r].contig << " " << parsedaln[r].pair_dir << " " << parsedaln[r].paired << " " << parsedaln.size() << " " << parsedaln[r].sequence_identity << "\n";
     // }
 
     if (it->sequence_identity >= sequenceidentity) {
         parsedaln.erase(std::remove_if(parsedaln.begin(),parsedaln.end(), [&](const al_data& a) { return it->sequence_identity > a.sequence_identity;}), parsedaln.end());
-        
+
         if (parsedaln.size() > 0) {
             unsigned int paired_count = std::count_if(parsedaln.begin(), parsedaln.end(),[](const al_data& a) { return a.paired == true;});
             unsigned int non_paired_count = parsedaln.size() - paired_count;
             float frac_contigs_mapped = 1.0f / parsedaln.size();
             float value_unpaired = 0.0f, value_added_to_paired = 0.0f, value_added_per_paired = 0.0f;
+
             if (paired_count > 0) {
+                // this operation could lead to higher frac_contigs_mapped than
+                // total counts of shorter contig obtained from summed value of 
+                // value added to paired and unpaired
                 value_unpaired = frac_contigs_mapped / 2.0f;
                 value_added_to_paired = value_unpaired * non_paired_count;
                 value_added_per_paired = value_added_to_paired / paired_count;
             } else {
-                value_unpaired = frac_contigs_mapped; // likely discordant alignment
+                // Currently, total assigned value 1 for only single read in a pair
+                // 0.5 and 0.5 for each separate alignment of a paired read
+                // This is same as perfect paired read mapping to two contigs
+                value_unpaired = frac_contigs_mapped; // discordant alignment
             }
-            // std::cout << paired_count << " paired count " << non_paired_count << " non paired " << frac_contigs_mapped << " frac contigs " << value_unpaired << " value unpaired " << value_added_per_paired << " value added \n";
 
             std::vector<std::string> contiglist;
             for (size_t r = 0; r < parsedaln.size(); r++) {
                 contiglist.push_back(parsedaln[r].contig);
-                // std::cout << parsedaln[r].read << " " << parsedaln[r].contig << " " << parsedaln[r].pair_dir << " " << parsedaln[r].paired << " " << parsedaln[r].sequence_identity <<" after filter set \n";
                 auto it = contigs_map.find(parsedaln[r].contig);
                 if (parsedaln[r].paired) {
                     it->second = it->second + frac_contigs_mapped + value_added_per_paired;
@@ -233,6 +238,8 @@ void counting(AlnParser &parsedaln, ContigsMap &contigs_map, ContigLinks &contig
             // add shared reads links to contigs
             for (std::size_t i = 0; i < contiglist.size(); ++i) {
                 for (std::size_t j = i + 1; j < contiglist.size(); ++j) {
+                    auto it1 = contigs_map.find(contiglist[i]);
+                    auto it2 = contigs_map.find(contiglist[j]);
                     addpairlinks(contig_links, contiglist[i], contiglist[j], frac_contigs_mapped);
                 }
             }
@@ -260,7 +267,13 @@ void fractionate_countlinks(ContigLinks &contiglinks, ContigsMap &contigs_map, s
             std::cerr << k.first.second << " is not present in contigs_map constructed. Revisit the code \n";
         }
         normalize_factor = (count_1 < count_2) ? count_1 : count_2;
+        if (frac_links > normalize_factor) {
+            frac_links = normalize_factor;
+        }
         frac_links /= normalize_factor;
+
+        // output file format: (i) pair_contig 1, (ii) pair_contig 2, 
+        // (iii) fraction of value obtained from the split-mapped read, (iv) iii normalized by the total count of shortest contig in the pair
         linkfile << k.first.first << " " << k.first.second << " " << k.second << " " << frac_links << "\n";
     }
     linkfile.close();
@@ -274,7 +287,7 @@ void fractionate_countlinks(ContigLinks &contiglinks, ContigsMap &contigs_map, s
 int main(int argc, char *argv[]) {
     auto start = std::chrono::high_resolution_clock::now();
 
-    // I promise to never use scanf or any library which would use scanf, but it makes input much faster
+    // never use scanf or any library which would use scanf, but it makes input much faster
     std::ios::sync_with_stdio(false);
 
     if (argc == 1 || strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
@@ -398,7 +411,7 @@ int main(int argc, char *argv[]) {
 
                 auto alnstats = get_seqid_alncov(alnpos, qual_str, md_str);
 
-                if (alnstats.second >= 70.0f) {
+                if ((!std::isnan(alnstats.first)) && (alnstats.second >= 70.0f)) {
                     // get read direction
                     unsigned int pair_flag = 0;
                     if (bitflag & FORWARD_FLAG) {
@@ -440,7 +453,7 @@ int main(int argc, char *argv[]) {
     std::ofstream outfile;
     outfile.open(tmp_dir + '/' + outname + "_count");
     for (auto const & k: contigs_map) {
-        outfile << k.first << " " << k.second << "\n";
+        outfile << k.first << " " << outname << " " << k.second << "\n";
     }
 
     outfile.close();
