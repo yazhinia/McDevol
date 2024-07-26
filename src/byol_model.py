@@ -3,9 +3,10 @@
 
 import os
 import time
-import argparse
 import copy
+import random
 import logging
+import argparse
 import numpy as np
 import pandas as pd
 import torch
@@ -163,26 +164,34 @@ class BYOLmodel(nn.Module):
         projection_size = 256
         projection_hidden_size = 4096
 
-        self.pairlinks = args.pairlinks
-        self.marker = {key: torch.tensor(value) for key, value in args.marker.items()}
+        # self.pairlinks = args.pairlinks
+        # self.marker = {key: torch.tensor(value) for key, value in args.marker.items()}
         cindices = np.arange(self.ncontigs)
-        indices_withpairs = np.unique(self.pairlinks.flatten())
-        self.pairindices = torch.from_numpy(cindices) # torch.from_numpy(cindices[indices_withpairs])
-        self.indim = self.nsamples + 1 + 512
+        # indices_withpairs = np.unique(self.pairlinks.flatten())
+        # self.pairindices = torch.from_numpy(cindices) # torch.from_numpy(cindices[indices_withpairs])
 
         self.read_counts = torch.from_numpy(normalize_counts(args.reads))
         self.kmeraug1 = torch.from_numpy(args.kmeraug1)
         self.kmeraug2 = torch.from_numpy(args.kmeraug2)
+        self.kmeraug3 = torch.from_numpy(args.kmeraug3)
+        self.kmeraug4 = torch.from_numpy(args.kmeraug4)
+        self.kmeraug5 = torch.from_numpy(args.kmeraug5)
+        self.kmeraug6 = torch.from_numpy(args.kmeraug6)
         self.contigs_length = torch.from_numpy(args.length)
         self.rawread_counts = torch.from_numpy(args.reads)
         self.cindices = torch.from_numpy(cindices)
+        self.indim = self.nsamples + 1 + self.kmeraug1.shape[1]
+        
+        
+        
         self.dataset = TensorDataset(self.read_counts, self.rawread_counts,\
-            self.contigs_length, self.cindices, self.kmeraug1, self.kmeraug2)
+            self.contigs_length, self.cindices, self.kmeraug1, self.kmeraug2,\
+            self.kmeraug3, self.kmeraug4, self.kmeraug5, self.kmeraug6)
         self.dataset_train, self.dataset_val, \
             self.dataset_test = split_dataset(self.dataset, True)
 
-        self.pairs_train, self.pairs_val, \
-            self.pairs_test = split_dataset(self.pairlinks, True)
+        # self.pairs_train, self.pairs_val, \
+        #     self.pairs_test = split_dataset(self.pairlinks, True)
 
         self.online_encoder = nn.Sequential(
             nn.Linear(self.indim, self.nhidden),
@@ -222,9 +231,9 @@ class BYOLmodel(nn.Module):
         """ augment read counts """
         rcounts = rcounts.clone().detach()
         if fraction_pi >= 0.5:
-            condition = contigs_length>=3000
+            condition = contigs_length>=2000
         else:
-            condition = contigs_length>=7000
+            condition = contigs_length>=5000
         rcounts[condition] = drawsample_frombinomial(rcounts[condition], fraction_pi)
 
         return normalize_counts(rcounts).to(contigs_length[0].device)
@@ -252,8 +261,8 @@ class BYOLmodel(nn.Module):
         z2_online = self.online_predictor(self.online_projector(self.online_encoder(xt)))
 
         with torch.no_grad():
-            z1_target = self.target_projector(self.target_encoder(xt))
-            z2_target =  self.target_projector(self.target_encoder(x))
+            z1_target = self.target_projector(self.target_encoder(xt)) # type: ignore
+            z2_target =  self.target_projector(self.target_encoder(x)) # type: ignore
 
         byol_loss = self.compute_loss(z1_online, z1_target.detach()) + \
             self.compute_loss(z2_online, z2_target.detach()) # to symmetrize the loss
@@ -307,12 +316,14 @@ class BYOLmodel(nn.Module):
             if training:
                 loss_array, latent_space, fraction_pi, optimizer = args
                 optimizer.zero_grad()
-                read_counts, rawread_counts, contigs_length, _, kmeraug1, kmeraug2 = in_data
+                read_counts, rawread_counts, contigs_length, _,\
+                    kmeraug1, kmeraug2, kmeraug3, kmeraug4, kmeraug5, kmeraug6 = in_data
 
             else:
                 loss_array, latent_space = args
 
-                read_counts, rawread_counts, contigs_length, _, kmeraug1, kmeraug2 = in_data
+                read_counts, rawread_counts, contigs_length, _, \
+                    kmeraug1, kmeraug2, kmeraug3, kmeraug4, kmeraug5, kmeraug6 = in_data
 
             if training:
                 ### augmentation by fragmentation ###
@@ -320,19 +331,21 @@ class BYOLmodel(nn.Module):
                     contigs_length, fraction_pi)
                 augmented_reads2 = self.data_augment(rawread_counts, \
                     contigs_length, fraction_pi)
-
+                kmeraug_online, kmeraug_target = random.sample([kmeraug1, kmeraug2, kmeraug3, kmeraug4, kmeraug5, kmeraug6],2)
                 if self.usecuda:
                     augmented_reads1 = augmented_reads1.cuda()
                     augmented_reads2 = augmented_reads2.cuda()
-                    kmeraug1 = kmeraug1.cuda()
-                    kmeraug2 = kmeraug2.cuda()
+                    kmeraug_online = kmeraug_online.cuda()
+                    kmeraug_target = kmeraug_target.cuda()
                     # cindices = cindices.cuda()
 
+                print(torch.min(augmented_reads1.sum(axis=1)), torch.min(augmented_reads1.sum(axis=1)), 'before log sampled counts summed')
                 rc_reads1 = torch.log(augmented_reads1.sum(axis=1))
                 rc_reads2 = torch.log(augmented_reads2.sum(axis=1))
+                print(torch.min(rc_reads1), torch.min(rc_reads2), 'rc mins')
                 latent, loss = \
-                    self(torch.cat((augmented_reads1, kmeraug1, rc_reads1[:,None]), 1), \
-                        torch.cat((augmented_reads2, kmeraug2, rc_reads2[:,None]), 1))
+                    self(torch.cat((augmented_reads1, kmeraug_online, rc_reads1[:,None]), 1), \
+                        torch.cat((augmented_reads2, kmeraug_target, rc_reads2[:,None]), 1))
 
             else:
                 rc_reads = torch.log(read_counts.sum(axis=1))
@@ -430,8 +443,8 @@ class BYOLmodel(nn.Module):
         nepochs: int,
         dataloader_train,
         dataloader_val,
-        dataloader_splittrain,
-        dataloader_splitval,
+        # dataloader_splittrain,
+        # dataloader_splitval,
         optimizer,
         batchsteps,
     ):
@@ -471,7 +484,7 @@ class BYOLmodel(nn.Module):
                 fraction_pi = self.augmentsteps[counter]
                 counter += 1
 
-                # print(fraction_pi, 'fraction pi')
+                print(fraction_pi, 'fraction pi')
 
             # training
             self.train()
@@ -483,7 +496,7 @@ class BYOLmodel(nn.Module):
             self.process_batches(epoch, dataloader_train, \
                 True, loss_train, latent_space_train, fraction_pi, optimizer)
             
-            self.scheduler.step()
+            self.scheduler.step() # type: ignore
 
 
             # testing
@@ -494,26 +507,26 @@ class BYOLmodel(nn.Module):
                 self.process_batches(epoch, dataloader_val, \
                 False, loss_val, latent_space_val)
 
-        # augmentation by split read mapping
-        for epoch in range(nepochs_2):
+        # # augmentation by split read mapping
+        # for epoch in range(nepochs_2):
            
-            self.train()
-            latent_space_train = []
+        #     self.train()
+        #     latent_space_train = []
 
-            # initialize target network
-            self.initialize_target_network()
+        #     # initialize target network
+        #     self.initialize_target_network()
 
 
-            self.process_batches_withpairs(epoch + nepochs_1, dataloader_splittrain, \
-                True, loss_train, latent_space_train, fraction_pi, optimizer)
+        #     self.process_batches_withpairs(epoch + nepochs_1, dataloader_splittrain, \
+        #         True, loss_train, latent_space_train, fraction_pi, optimizer)
 
-            # testing
-            self.eval()
-            latent_space_val = []
+        #     # testing
+        #     self.eval()
+        #     latent_space_val = []
 
-            with torch.no_grad():
-                self.process_batches_withpairs(epoch + nepochs_1, dataloader_splitval, \
-                False, loss_val, latent_space_val)
+        #     with torch.no_grad():
+        #         self.process_batches_withpairs(epoch + nepochs_1, dataloader_splitval, \
+        #         False, loss_val, latent_space_val)
 
             # if check_earlystop.early_stop(loss_val[-1]):
             #     break
@@ -529,11 +542,11 @@ class BYOLmodel(nn.Module):
         self,
         nepochs: int = 400, #
         lrate: float = 3e-6,
-        batchsteps: list = None,
+        batchsteps: list = [],
         ):
         """ train medevol vae byol model """
 
-        if batchsteps is None:
+        if not batchsteps:
             batchsteps = [50, 75, 100] # [1, 2, 3, 4] # [500, 1000, 2000] # [50, 100, 150, 200] # [30, 50, 70, 100], #[10, 20, 30, 45],
         batchsteps_set = sorted(set(batchsteps))
 
@@ -544,15 +557,15 @@ class BYOLmodel(nn.Module):
             batch_size=4096, drop_last=True, shuffle=True, \
             num_workers=self.num_workers, pin_memory=self.cuda)
 
-        # split read mapping dataloader
-        dataloader_splittrain = DataLoader(dataset=self.pairs_train, \
-            batch_size= 4096 * 2, shuffle=True, drop_last=True, \
-            num_workers=self.num_workers, pin_memory=self.cuda)
-        dataloader_splitval = DataLoader(dataset=self.pairs_val, \
-            batch_size= 4096 * 2, shuffle=True, drop_last=True, \
-            num_workers=self.num_workers, pin_memory=self.cuda)
+        # # split read mapping dataloader
+        # dataloader_splittrain = DataLoader(dataset=self.pairs_train, \
+        #     batch_size= 4096 * 2, shuffle=True, drop_last=True, \
+        #     num_workers=self.num_workers, pin_memory=self.cuda)
+        # dataloader_splitval = DataLoader(dataset=self.pairs_val, \
+        #     batch_size= 4096 * 2, shuffle=True, drop_last=True, \
+        #     num_workers=self.num_workers, pin_memory=self.cuda)
 
-        optimizer = Adam(self.parameters(), lr=lrate, weight_decay=1e-1)
+        optimizer = Adam(self.parameters(), lr=lrate) #, weight_decay=1e-1)
         warmup_epochs = 50
         warmup_scheduler = WarmUpLR(optimizer, total_iters=warmup_epochs * len(dataloader_train))
 
@@ -561,8 +574,7 @@ class BYOLmodel(nn.Module):
         self.scheduler = WarmUpThenScheduler(optimizer, warmup_scheduler, main_scheduler)
 
         self.trainepoch(
-            nepochs, dataloader_train, dataloader_val, \
-            dataloader_splittrain, dataloader_splitval, optimizer, batchsteps_set)
+            nepochs, dataloader_train, dataloader_val, optimizer, batchsteps_set) # dataloader_splittrain, dataloader_splitval,
 
         torch.save(self.state_dict(), self.outdir + '/byol_model.pth')
 
@@ -608,9 +620,9 @@ class LinearClassifier(nn.Module):
         """ linear layer forward """
         return self.fc(x)
 
-
+"""
 def train_linear_classifier(byol_model, whole_dataloader, train_loader, test_loader, num_classes, logger):
-    """ train linear classifier for the latent space """
+    # train linear classifier for the latent space
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # "cpu" #
     print(device, 'device inside linear classifier')
     # Assuming the feature dimension is 2048 for BYOL
@@ -699,7 +711,7 @@ def train_linear_classifier(byol_model, whole_dataloader, train_loader, test_loa
         byol_model.outdir + '/probabilities', header=None, sep='\t')
     logger.info(f'Accuracy of the network on the \
         {len(whole_dataloader)*4096} whole data: {100 * correct / total} %')
-
+"""
 
 def main() -> None:
 
@@ -710,7 +722,7 @@ def main() -> None:
         description="BYOL for metagenome binning",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         usage="%(prog)s \
-        --reads --length --names --otuids --marker --kmer --kmeraug1 --kmeragu2 --outdir [options]",
+        --reads --length --names --otuids --kmer --kmeraug1 --kmeragu2 --outdir [options]",
         add_help=False,
     )
 
@@ -720,18 +732,26 @@ def main() -> None:
         help="length of contigs in bp", required=True)
     parser.add_argument("--names", type=str, \
         help="ids of contigs", required=True)
-    parser.add_argument("--pairlinks", type=str, \
-        help="provide pair links array", required=True)
-    parser.add_argument("--otuids", type=str, \
-        help="otuids of contigs", required=True)
-    parser.add_argument("--marker", type=str, \
-        help="marker genes hit", required=True)
-    parser.add_argument("--kmer", type=str, \
-        help='kmer embedding', required=True)
+    # parser.add_argument("--pairlinks", type=str, \
+    #     help="provide pair links array", required=True)
+    # parser.add_argument("--otuids", type=str, \
+    #     help="otuids of contigs", required=True)
+    # parser.add_argument("--marker", type=str, \
+    #     help="marker genes hit", required=True)
+    # parser.add_argument("--kmer", type=str, \
+    #     help='kmer embedding', required=True)
     parser.add_argument("--kmeraug1", type=str, \
         help='kmer embedding augment 1', required=True)
     parser.add_argument("--kmeraug2", type=str, \
         help='kmer embedding augment 2', required=True)
+    parser.add_argument("--kmeraug3", type=str, \
+        help='kmer embedding augment 3', required=True)
+    parser.add_argument("--kmeraug4", type=str, \
+        help='kmer embedding augment 4', required=True)
+    parser.add_argument("--kmeraug5", type=str, \
+        help='kmer embedding augment 5', required=True)
+    parser.add_argument("--kmeraug6", type=str, \
+        help='kmer embedding augment 6', required=True)
     parser.add_argument("--outdir", type=str, \
         help="output directory", required=True)
     parser.add_argument("--nlatent", type=int, \
@@ -744,13 +764,26 @@ def main() -> None:
     args.reads = np.load(args.reads, allow_pickle=True)['arr_0']
     args.length = np.load(args.length, allow_pickle=True)['arr_0']
     args.names = np.load(args.names, allow_pickle=True)['arr_0']
-    args.pairlinks = np.load(args.pairlinks, allow_pickle='True')
-    args.kmer = np.load(args.kmer, allow_pickle=True).astype(np.float32)
+    # args.pairlinks = np.load(args.pairlinks, allow_pickle='True')
+    # args.kmer = np.load(args.kmer, allow_pickle=True).astype(np.float32)
     args.kmeraug1 = np.load(args.kmeraug1, allow_pickle=True).astype(np.float32)
     args.kmeraug2 = np.load(args.kmeraug2, allow_pickle=True).astype(np.float32)
+    args.kmeraug3 = np.load(args.kmeraug3, allow_pickle=True).astype(np.float32)
+    args.kmeraug4 = np.load(args.kmeraug4, allow_pickle=True).astype(np.float32)
+    args.kmeraug5 = np.load(args.kmeraug5, allow_pickle=True).astype(np.float32)
+    args.kmeraug6 = np.load(args.kmeraug6, allow_pickle=True).astype(np.float32)
+    # scale kmer input
+    # first attempt * 512 1-3
+    # second attempt * 100 1-3
+    # third attempt * 10 1-3
+    # four attempt * 150 1-3
+    # five attempt * 200 1-3
+    # args.kmer = args.kmer * 200
+    # args.kmeraug1 = args.kmeraug1 * 200
+    # args.kmeraug2 = args.kmeraug2 * 200
 
-    args.marker = pd.read_csv(args.marker, header=None, sep='\t')
-    args.marker = dict(args.marker.groupby(1)[0].apply(list))
+    # args.marker = pd.read_csv(args.marker, header=None, sep='\t')
+    # args.marker = dict(args.marker.groupby(1)[0].apply(list))
 
     args.outdir = os.path.join(args.outdir, '')
     print(args.outdir ,'output directory')
@@ -778,42 +811,33 @@ def main() -> None:
     # print(f"BYOL training is completed in {time.time() - start} seconds")
     # byol.load_state_dict(torch.load(args.outdir + '/byol_model.pth'), strict= False)
 
-    args.otuids = pd.read_csv(args.otuids, header=None)
-    unique_otu_ids = args.otuids[0].unique()
-    otu_mapping = {otu_id: idx for idx, otu_id in enumerate(unique_otu_ids)}
-    args.otuids[1] = args.otuids[0].map(otu_mapping)
+    # No linear classification for real dataset
 
-    labels = args.otuids[1].to_numpy()
-    read_counts = torch.from_numpy(normalize_counts(args.reads))
-    kmers = torch.from_numpy(args.kmer)
+    # args.otuids = pd.read_csv(args.otuids, header=None)
+    # unique_otu_ids = args.otuids[0].unique()
+    # otu_mapping = {otu_id: idx for idx, otu_id in enumerate(unique_otu_ids)}
+    # args.otuids[1] = args.otuids[0].map(otu_mapping)
+
+    # labels = args.otuids[1].to_numpy()
+    # read_counts = torch.from_numpy(normalize_counts(args.reads))
+    # kmers = torch.from_numpy(args.kmer)
+
+    # dataset = TensorDataset(read_counts, kmers, torch.from_numpy(labels)) 
+
+    # train_size = int(read_counts.shape[0] * 0.8)
+    # test_size = int(read_counts.shape[0] - train_size)
+    # dataset_train, dataset_test = torch.utils.data.random_split(dataset,[train_size,test_size])
+    # train_loader = DataLoader(dataset_train, batch_size=4096, shuffle=True,\
+    #         num_workers=4, pin_memory=True)
+    # test_loader = DataLoader(dataset_test,batch_size=4096, shuffle=False, \
+    #         num_workers=4, pin_memory=True)
+
+    # whole_dataloader = DataLoader(dataset, batch_size=4096, shuffle=False,\
+    #         num_workers=4, pin_memory=True)
+    # train_linear_classifier(byol, whole_dataloader, train_loader, \
+    #     test_loader, np.max(labels), args.logger)
 
 
-    print(args.reads, 'args reads')
-    print(args.kmer, 'args kmer')
-    print(args.length, 'args length')
-    print(args.names, 'args names')
-    print(args.pairlinks, 'args pairlinks')
-    print(args.kmeraug1, 'args kmeraug1')
-    print(args.kmeraug2, 'args kmeraug2')
-    print(args.marker, 'args marker')
-    print(args.outdir, 'args outdir')
-    print(args.otuids[1], 'args otuids')
-    print(labels, 'labels')
-
-    dataset = TensorDataset(read_counts, kmers, torch.from_numpy(labels)) 
-
-    train_size = int(read_counts.shape[0] * 0.8)
-    test_size = int(read_counts.shape[0] - train_size)
-    dataset_train, dataset_test = torch.utils.data.random_split(dataset,[train_size,test_size])
-    train_loader = DataLoader(dataset_train, batch_size=4096, shuffle=True,\
-            num_workers=4, pin_memory=True)
-    test_loader = DataLoader(dataset_test,batch_size=4096, shuffle=False, \
-            num_workers=4, pin_memory=True)
-
-    whole_dataloader = DataLoader(dataset, batch_size=4096, shuffle=False,\
-            num_workers=4, pin_memory=True)
-    train_linear_classifier(byol, whole_dataloader, train_loader, \
-        test_loader, np.max(labels), args.logger)
     args.logger.info(f'{time.time()-start}, seconds to complete')
 if __name__ == "__main__" :
     main()
