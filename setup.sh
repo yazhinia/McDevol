@@ -15,7 +15,7 @@ if [ -d "build" ]; then
 rm -rf build
 fi
 mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DPYBIND11_FINDPYTHON=ON ..
+cmake -DCMAKE_BUILD_TYPE=Release -DPYBIND11_FINDPYTHON=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ..
 make && cd ../ && cp bam2counts.cpython* ../ && cd ../
 fi
 # end
@@ -30,7 +30,7 @@ if [ -d "build" ]; then
 rm -rf build
 fi
 mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DPYBIND11_FINDPYTHON=ON ..
+cmake -DCMAKE_BUILD_TYPE=Release -DPYBIND11_FINDPYTHON=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ..
 make && cd ../ && cp bayesian_distance.cpython* ../ && cd ../
 fi
 echo "completed building bayesian distance module"

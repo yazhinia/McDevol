@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import src.optimize_parameters as opt
 from multiprocessing.pool import Pool
-from src.density_based_clustering import cluster_by_connecting_centroids
+from src.contigs_clustering import cluster_by_connecting_centroids
 from util.bam2counts import obtain_readcounts
 from datetime import datetime
 
